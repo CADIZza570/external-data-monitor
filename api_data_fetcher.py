@@ -106,6 +106,9 @@ def save_data(df: pd.DataFrame):
         print(f"❌ {error_msg}")
         raise
 
+def validate_required_fields(df):
+    pass    
+
 def main():
     """Función principal del script."""
     print("🚀 Iniciando api_data_fetcher.py - Proyecto Línea Base (Mes 1-2)")
@@ -175,5 +178,6 @@ REPORTE DE LIMPIEZA (Mes 2)
     print(f"✅ CSV limpio guardado: {clean_path}")
 
     return clean_path
+
 if __name__ == "__main__":
     main()
