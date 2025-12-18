@@ -21,6 +21,6 @@
 **Próximos pasos inmediatos:**  
 - Crear README.md profesional  
 - Subir todo a GitHub público  
-- Artefacto visible mensual (capturas)
+- Artefacto visible mensual (Capturas de consola y carpeta output/ con múltiples ejecuciones)
 
 ¡Sistemas vivos en acción! 🔥

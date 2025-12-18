@@ -2,7 +2,7 @@
 
 Professional Python script that:
 - Consumes public APIs (currently JSONPlaceholder /users)
-- Validates data structure
+- Validates data structure          
 - Saves results to timestamped CSV and JSON files
 - Logs detailed execution and errors
 
@@ -12,3 +12,9 @@ Philosophy: Living systems that don't die.
 ## Installation
 ```bash
 pip install pandas requests
+## Dependencies
+See `requirements.txt` for exact versions.
+
+Install with:
+```bash
+pip install -r requirements.txt
