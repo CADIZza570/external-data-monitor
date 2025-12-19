@@ -1,35 +1,191 @@
 # External Data Monitor - Baseline Project
 
+![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
+![Status](https://img.shields.io/badge/status-active-success.svg)
+![Progress](https://img.shields.io/badge/progress-Mes%202%20(80%25)-yellow.svg)
+![Commits](https://img.shields.io/github/commit-activity/w/CADIZza570/external-data-monitor)
+
 Professional Python script that:
 - Consumes public APIs (currently JSONPlaceholder /users)
-- Validates data structure          
+- Validates data structure
 - Saves results to timestamped CSV and JSON files
 - Logs detailed execution and errors
+
+## 📸 Demo
+
+### Successful execution:
+```
+🚀 Iniciando api_data_fetcher.py – Proyecto Línea Base (Mes 1-2)
+[18:08:28] Conectando a la API...
+✅ Datos descargados: 10 registros
+Validando estructura de datos...
+✅ Validación exitosa
+
+REPORTE DE LIMPIEZA (Mes 2)
+- Registros originales: 10
+- Registros limpios: 10
+- Duplicados eliminados: 0
+- Columnas seleccionadas: id, name, username, email, phone, website, city
+
+✅ CSV guardado: output/users_data_20251218_180828.csv
+✅ JSON guardado: output/users_data_20251218_180828.json
+🎉 Script completado con éxito
+```
+
+### Data analysis with groupby():
+```
+📊 ANÁLISIS DE DATOS CON GROUPBY (Mes 2)
+============================================================
+
+1️⃣ Usuarios por dominio de email:
+email_domain
+annie.ca       1
+april.biz      1
+elvis.io       1
+...
+
+🏆 Dominio más común: annie.ca (1 usuarios)
+
+2️⃣ Usuarios por ciudad:
+city
+Aliyaview         1
+Bartholomebury    1
+Gwenborough       1
+...
+
+✅ Análisis completado
+```
 
 ## Data Validation Logic
 
 ### Required fields
-- id: Unique identifier required for tracking records
-- name: Primary human-readable identifier
-- email: Required for contact and system integrations
-- phone: Required for potential outreach or CRM use
+- **id:** Unique identifier required for tracking records
+- **name:** Primary human-readable identifier
+- **email:** Required for contact and system integrations
+- **phone:** Required for potential outreach or CRM use
 
 ### Optional fields
-- address: Not always needed depending on use case
-- website: Informational only
+- **address:** Not always needed depending on use case
+- **website:** Informational only
 
 ### Discarded fields
-- company: Removed to reduce noise and because it's not required for the current automation scope
+- **company:** Removed to reduce noise and because it's not required for the current automation scope
 
 Part of the **DEFINITIVE PLAN - Python + Automations (6 months)**  
 Philosophy: Living systems that don't die.
 
 ## Installation
+
 ```bash
 pip install pandas requests
+```
+
 ## Dependencies
+
 See `requirements.txt` for exact versions.
 
 Install with:
 ```bash
 pip install -r requirements.txt
+```
+
+## Usage
+
+```bash
+python api_data_fetcher.py
+```
+
+The script will:
+1. Fetch data from JSONPlaceholder API
+2. Validate required columns
+3. Clean duplicates and normalize emails
+4. Save timestamped outputs to `output/` directory
+5. Log all operations to `api_data_fetcher.log`
+
+### Data analysis:
+```bash
+python analyze_users.py
+```
+
+## Features
+
+### Resilience (Mes 1 + Mes 4)
+- ✅ Exponential backoff retry logic (1s, 2s, 4s)
+- ✅ Handles 500, 502, 503, 504 server errors
+- ✅ Timeout protection (10s max)
+- ✅ Connection error handling
+
+### Data Processing (Mes 2)
+- ✅ Pandas data cleaning pipeline
+- ✅ Duplicate removal by email
+- ✅ Email normalization (lowercase)
+- ✅ Email validation (contains @)
+- ✅ City extraction from address
+- ✅ Column selection and filtering
+
+### Analysis (Mes 2)
+- ✅ groupby() aggregations
+- ✅ Multi-column statistics with .agg()
+- ✅ Domain frequency analysis
+- ✅ Geographic distribution
+
+## Project Structure
+
+```
+python-automation/
+├── api_data_fetcher.py      # Main script with retry logic
+├── analyze_users.py          # Data analysis with groupby()
+├── test_manual.py            # Manual test suite
+├── requirements.txt          # Dependencies
+├── README.md                 # This file
+├── NOTES.md                  # Project journal and post-mortems
+└── output/                   # Generated files (not in Git)
+    ├── users_data_*.csv
+    ├── users_data_*.json
+    └── users_data_*_clean.csv
+```
+
+## 🎯 Roadmap
+
+### ✅ Completed (Mes 1-2):
+- [x] Resilient API fetching with retry logic
+- [x] Data validation and cleaning with Pandas
+- [x] Professional logging and error handling
+- [x] Automated duplicate removal
+- [x] Email normalization and validation
+- [x] Data analysis with groupby()
+- [x] City extraction from nested JSON
+
+### 🟡 In Progress (Mes 3):
+- [ ] n8n workflow integration
+- [ ] Webhook endpoints
+- [ ] Email alerts on errors
+- [ ] Multi-source data aggregation
+
+### ⏳ Planned (Mes 4-6):
+- [ ] Niche validation (Columbus, OH market)
+- [ ] Client-ready maintenance package ($30-50/month)
+- [ ] Production deployment with monitoring
+- [ ] Excel file support (read_excel)
+- [ ] Data merging from multiple sources
+
+## Progress Status
+
+**Current:** Mes 2 (80% complete) - 5-6 weeks ahead of schedule  
+**Next milestone:** n8n basic workflow (Mes 3)  
+**Timeline:** Started Dec 17, 2025
+
+## Contributing
+
+This is a learning project following the "Definitive Plan - Python + Automations (6 months)".  
+Philosophy: Systems that don't die. Action > Perfection.
+
+## License
+
+Personal learning project - Not licensed for commercial use yet.
+
+---
+
+**Part of:** [DEFINITIVE PLAN - Python + Automations (6 months)](PLAN.md)  
+**Author:** Constanza Araya  
+**Location:** Columbus, Ohio, US
