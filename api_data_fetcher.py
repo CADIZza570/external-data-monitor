@@ -3,6 +3,9 @@ import pandas as pd
 import logging
 import os
 from datetime import datetime
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from requests.exceptions import RequestException
 
 # ========================= CONFIGURACIÓN =========================
 API_URL = API_URL = "https://jsonplaceholder.typicode.com/users"  # detalle de api
@@ -23,28 +26,74 @@ logging.basicConfig(
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ========================= FUNCIONES =========================
+
 def fetch_data(url: str) -> pd.DataFrame:
-    """Obtiene datos de la API y los convierte en DataFrame."""
+    """Obtiene datos de la API con reintentos automáticos.
+    
+    Estrategia de resiliencia:
+    - 3 reintentos máximo
+    - Espera progresiva: 1s, 2s, 4s (backoff exponencial)
+    - Solo reintenta en errores de servidor (500, 502, 503, 504)
+    
+    Args:
+        url: URL de la API a consumir
+        
+    Returns:
+        DataFrame con los datos obtenidos
+        
+    Raises:
+        RequestException: Si todos los reintentos fallan
+    """
     logging.info(f"Iniciando solicitud a la API: {url}")
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Conectando a la API...")
     
+    # Configurar sesión con reintentos automáticos
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[500, 502, 503, 504],
+        allowed_methods=["GET"]
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    
     try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()  # Lanza excepción si hay error HTTP
-        data = response.json()
+        response = session.get(url, timeout=10)
+        response.raise_for_status()
         
-        # Convertir a DataFrame
+        data = response.json()
         df = pd.DataFrame(data)
         
         logging.info(f"Datos obtenidos exitosamente. Filas: {len(df)}")
         print(f"✅ Datos descargados: {len(df)} registros")
         return df
-    
-    except requests.exceptions.RequestException as e:
+        
+    except requests.exceptions.Timeout:
+        error_msg = f"Timeout al conectar con {url} (>10s)"
+        logging.error(error_msg)
+        print(f"❌ {error_msg}")
+        raise
+        
+    except requests.exceptions.ConnectionError as e:
+        error_msg = f"Error de conexión: {e}"
+        logging.error(error_msg)
+        print(f"❌ {error_msg}")
+        raise
+        
+    except requests.exceptions.HTTPError as e:
+        error_msg = f"Error HTTP {response.status_code}: {e}"
+        logging.error(error_msg)
+        print(f"❌ {error_msg}")
+        raise
+        
+    except RequestException as e:
         error_msg = f"Error en la solicitud HTTP: {e}"
         logging.error(error_msg)
         print(f"❌ {error_msg}")
         raise
+        
     except ValueError as e:
         error_msg = f"Respuesta no es JSON válido: {e}"
         logging.error(error_msg)
@@ -54,8 +103,9 @@ def fetch_data(url: str) -> pd.DataFrame:
         error_msg = f"Error inesperado al obtener datos: {e}"
         logging.error(error_msg)
         print(f"❌ {error_msg}")
-        raise
-
+        raise    
+    finally:
+        session.close()
 
 def validate_data(df: pd.DataFrame) -> pd.DataFrame:
     """Valida que el DataFrame tenga las columnas requeridas y maneja nulos."""
@@ -76,12 +126,11 @@ def validate_data(df: pd.DataFrame) -> pd.DataFrame:
         null_cols = critical_nulls[critical_nulls].index.tolist()
         warning_msg = f"Advertencia: Valores nulos en columnas críticas: {null_cols}"
         logging.warning(warning_msg)
-        print(f"⚠️  {warning_msg}")
+        print(f"⚠️ {warning_msg}")
     
     logging.info("Validación completada exitosamente")
     print("✅ Validación exitosa")
     return df
-
 
 def save_data(df: pd.DataFrame):
     """Guarda los datos en CSV y JSON con nombres claros y timestamp."""
@@ -106,8 +155,52 @@ def save_data(df: pd.DataFrame):
         print(f"❌ {error_msg}")
         raise
 
-def validate_required_fields(df):
-    pass    
+def validate_required_fields(df: pd.DataFrame) -> bool:
+    """Verifica que el DataFrame tenga todas las columnas críticas.
+    
+    Esta función es la primera línea de defensa antes de procesar datos.
+    Si faltan columnas esenciales, es mejor fallar rápido que continuar
+    con datos incompletos.
+    
+    Args:
+        df: DataFrame a validar
+        
+    Returns:
+        True si todas las columnas requeridas están presentes
+        
+    Raises:
+        ValueError: Si faltan columnas críticas
+        
+    Example:
+        >>> df = pd.DataFrame({"id": [1], "name": ["Ana"]})
+        >>> validate_required_fields(df)
+        ValueError: Columnas obligatorias faltantes: ['email']
+    """
+    logging.info("Validando campos requeridos en DataFrame")
+    
+    # Columnas mínimas necesarias (ajusta según tu caso)
+    required_fields = ["id", "name", "email"]
+    
+    # Identificar columnas faltantes
+    missing_fields = [field for field in required_fields if field not in df.columns]
+    
+    if missing_fields:
+        error_msg = f"Columnas obligatorias faltantes: {missing_fields}"
+        logging.error(error_msg)
+        print(f"❌ {error_msg}")
+        raise ValueError(error_msg)
+    
+    logging.info(f"✅ Todas las columnas requeridas presentes: {required_fields}")
+    print(f"✅ Validación de campos: OK")
+    
+    # Validación adicional: detectar columnas completamente vacías
+    empty_cols = df.columns[df.isnull().all()].tolist()
+    if empty_cols:
+        warning_msg = f"Advertencia: Columnas completamente vacías: {empty_cols}"
+        logging.warning(warning_msg)
+        print(f"⚠️ {warning_msg}")
+    
+    return True
 
 def main():
     """Función principal del script."""
@@ -144,17 +237,31 @@ def process_data(csv_path: str):
     print(f"Registros originales: {before_rows}")
 
     # Limpieza mínima viable (Mes 2)
-    # 1. Seleccionar columnas útiles (ejemplo para leads/e-commerce)
-    useful_columns = ["id", "name", "username", "email", "phone", "website"]
+    # 1. Seleccionar columnas útiles (incluyendo address para extraer city)
+    useful_columns = ["id", "name", "username", "email", "phone", "website", "address"]
     df_clean = df[useful_columns].copy()
 
-    # 2. Eliminar duplicados por email
+    # 2. Extraer "city" del address anidado (es un string dict, lo parseamos)
+    def extract_city(address_str):
+        try:
+            # Convertir el string dict a dict real
+            address = eval(address_str)  # Seguro porque es datos confiables de JSONPlaceholder
+            return address['city']
+        except:
+            return "Unknown"  # Fallback si falla
+
+    df_clean['city'] = df_clean['address'].apply(extract_city)
+
+    # 3. Eliminar la columna address original (ya extrajimos city)
+    df_clean = df_clean.drop(columns=['address'])
+
+    # 4. Eliminar duplicados por email
     df_clean = df_clean.drop_duplicates(subset=["email"])
 
-    # 3. Estandarizar emails a minúsculas
+    # 5. Estandarizar emails a minúsculas
     df_clean["email"] = df_clean["email"].str.lower()
 
-    # 4. Filtrar emails válidos (contienen @)
+    # 6. Filtrar emails válidos (contienen @)
     df_clean = df_clean[df_clean["email"].str.contains("@")]
 
     after_rows = len(df_clean)
@@ -167,7 +274,8 @@ REPORTE DE LIMPIEZA (Mes 2)
 - Registros originales: {before_rows}
 - Registros limpios: {after_rows}
 - Duplicados/eliminados: {before_rows - after_rows}
-- Columnas seleccionadas: {', '.join(useful_columns)}
+- Columnas seleccionadas: {', '.join(df_clean.columns)}
+- Nueva columna extraída: city
 """
     print(report)
     logging.info(report.strip())
