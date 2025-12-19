@@ -1,0 +1,51 @@
+# =====================
+# Logs
+# =====================
+*.log
+error_log.txt
+
+# =====================
+# Outputs generados
+# =====================
+output/
+*.csv
+*.json
+*_clean.csv
+
+# =====================
+# Python cache
+# =====================
+__pycache__/
+*.py[cod]
+*.pyc
+.Python
+
+# =====================
+# Entornos virtuales
+# =====================
+.env
+.venv/
+venv/
+env/
+ENV/
+
+# =====================
+# Sistema operativo
+# =====================
+.DS_Store
+Thumbs.db
+
+# =====================
+# IDEs
+# =====================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =====================
+# Temporales
+# =====================
+*.tmp
+temp/
+tmp/
