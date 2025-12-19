@@ -23,4 +23,9 @@
 - Subir todo a GitHub público  
 - Artefacto visible mensual (Capturas de consola y carpeta output/ con múltiples ejecuciones)
 
+## Decision Log – Data Cleaning
+
+Chose to keep all raw outputs in /output as execution evidence.
+Introduced *_clean.csv as the canonical dataset for downstream systems.
+
 ¡Sistemas vivos en acción! 🔥
