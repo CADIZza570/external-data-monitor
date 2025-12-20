@@ -303,8 +303,8 @@ if __name__ == "__main__":
     logging.info("Daemon iniciado con schedule")
     
     # PROGRAMACIÓN (ajusta según quieras probar)
-    # Cada 10 minutos (para pruebas rápidas)
-    schedule.every().day.at("09:00").do(run_full_pipeline)
+    
+    schedule.every().hour.do(run_full_pipeline)
     
     # O cada hora
     # schedule.every().hour.do(run_full_pipeline)
