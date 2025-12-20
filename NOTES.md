@@ -75,3 +75,53 @@ Razones:
 Próximo: Evolucionar script para "low-stock alert" demo (Mes 3-4).
 
 ¡Sistemas vivos en acción! 🔥
+
+# Weekly Post-Mortem - 19 Diciembre 2025 (Cierre Mes 2 / Inicio Mes 3)
+
+¿Qué se rompió esta semana?
+- Inicialmente planeábamos n8n como cerebro principal (Mes 3).
+- Riesgo detectado: dependencia externa, límites gratis, menos control.
+
+¿Por qué?
+- n8n es rápido para prototipos, pero en producción real dependes de su pricing, estabilidad y límites.
+- El PLAN busca "sistemas vivos que no mueren" y "control total".
+
+¿Cómo lo evitaría la próxima?
+- Priorizar siempre herramientas con control total (Python puro) antes de low-code externas.
+- Evaluar dependencias externas con la pregunta: "¿Si esta herramienta desaparece mañana, mi sistema sigue vivo?"
+
+¿Cómo encaja esta semana en el plan completo?
+- Mes 2 cerrado al 100%: Pandas pipeline completo (limpieza, extracción city, reporte automático).
+- Pivot inteligente a Python + schedule/cron como base (control total).
+- Nicho tentativo elegido: E-commerce (Shopify inventory alerts) con evidencia real de Upwork.
+- Artefacto visible: Daemon automático corriendo solo, CSV clean con city, requirements.txt actualizado.
+- Decisión profesional: n8n queda como opción secundaria (solo si cliente lo pide y cobro extra).
+
+Conclusión: El plan evoluciona a más resiliencia y monetización real.  
+¡Sistemas vivos en acción – control total conseguido! ⚡
+
+# Weekly Post-Mortem - 19 Diciembre 2025 (Cierre Mes 2 / Inicio Mes 3)
+
+¿Qué se rompió esta semana?
+- Warnings de Pandas (FutureWarning chained assignment).
+- Dependencia inicial planeada en n8n (riesgo de límites y control bajo).
+
+¿Por qué?
+- Warnings: Uso de chained assignment (df["col"] = ...) que cambiará en pandas 3.0.
+- n8n: Rápido para prototipos, pero dependes de pricing externo, límites gratis y menos control total.
+
+¿Cómo lo evitaría la próxima?
+- Warnings: Siempre usar df.loc[:, "col"] = ... para asignaciones seguras.
+- Dependencias externas: Evaluar con "si desaparece mañana, ¿mi sistema vive?" → Priorizar Python puro.
+
+¿Cómo encaja esta semana en el plan completo?
+- Mes 2 cerrado al 100%: Pandas pipeline completo (limpieza, extracción city, reporte automático, warnings eliminados).
+- Pivot inteligente: De n8n a Python + schedule/cron (control total, estabilidad profesional).
+- Daemon automático corriendo en background (ejecuciones programadas reales).
+- Nicho tentativo: E-commerce (Shopify inventory alerts) con evidencia Upwork.
+- Artefactos visibles: CSV clean con city, daemon vivo, PDF del plan generado.
+- requirements.txt actualizado con schedule.
+
+Conclusión: El plan evoluciona a más resiliencia y monetización real.  
+Sistemas vivos > herramientas externas frágiles.  
+¡Control total conseguido! ⚡
