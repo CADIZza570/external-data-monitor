@@ -236,7 +236,6 @@ def process_data(csv_path: str):
     before_rows = len(df)
     print(f"Registros originales: {before_rows}")
 
-    # Limpieza mínima viable (Mes 2)
     # 1. Seleccionar columnas útiles (incluyendo address para extraer city)
     useful_columns = ["id", "name", "username", "email", "phone", "website", "address"]
     df_clean = df[useful_columns].copy()
@@ -245,12 +244,12 @@ def process_data(csv_path: str):
     def extract_city(address_str):
         try:
             # Convertir el string dict a dict real
-            address = eval(address_str)  # Seguro porque es datos confiables de JSONPlaceholder
+            address = eval(address_str) # Seguro porque es datos confiables de JSONPlaceholder
             return address['city']
         except:
-            return "Unknown"  # Fallback si falla
+            return "Unknown" # Fallback si falla
 
-    df_clean['city'] = df_clean['address'].apply(extract_city)
+    df_clean.loc[:, 'city'] = df_clean['address'].apply(extract_city)
 
     # 3. Eliminar la columna address original (ya extrajimos city)
     df_clean = df_clean.drop(columns=['address'])
@@ -258,10 +257,10 @@ def process_data(csv_path: str):
     # 4. Eliminar duplicados por email
     df_clean = df_clean.drop_duplicates(subset=["email"])
 
-    # 5. Estandarizar emails a minúsculas
+    # 5. Estandarizar emails a minúsculas (sin warning)
     df_clean.loc[:, "email"] = df_clean["email"].str.lower()
 
-    # 6. Filtrar emails válidos (contienen @)
+    # 6. Filtrar emails válidos
     df_clean = df_clean[df_clean["email"].str.contains("@")]
 
     after_rows = len(df_clean)
@@ -274,13 +273,13 @@ REPORTE DE LIMPIEZA (Mes 2)
 - Registros originales: {before_rows}
 - Registros limpios: {after_rows}
 - Duplicados/eliminados: {before_rows - after_rows}
-- Columnas seleccionadas: {', '.join(df_clean.columns)}
-- Nueva columna extraída: city
+- Columnas: {', '.join(df_clean.columns)}
+- Nueva: city extraída
 """
     print(report)
     logging.info(report.strip())
 
-    # Guardar versión limpia
+    # Guardar version limpia
     clean_path = csv_path.replace(".csv", "_clean.csv")
     df_clean.to_csv(clean_path, index=False)
     print(f"✅ CSV limpio guardado: {clean_path}")
