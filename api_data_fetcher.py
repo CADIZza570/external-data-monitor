@@ -259,7 +259,7 @@ def process_data(csv_path: str):
     df_clean = df_clean.drop_duplicates(subset=["email"])
 
     # 5. Estandarizar emails a minúsculas
-    df_clean["email"] = df_clean["email"].str.lower()
+    df_clean.loc[:, "email"] = df_clean["email"].str.lower()
 
     # 6. Filtrar emails válidos (contienen @)
     df_clean = df_clean[df_clean["email"].str.contains("@")]
@@ -287,5 +287,36 @@ REPORTE DE LIMPIEZA (Mes 2)
 
     return clean_path
 
+import schedule
+import time
+
+def run_full_pipeline():
+    """Ejecuta el flujo completo del script."""
+    print("\n" + "="*50)
+    print("EJECUCIÓN AUTOMÁTICA PROGRAMADA")
+    print("="*50)
+    logging.info("=== EJECUCIÓN AUTOMÁTICA PROGRAMADA ===")
+    
+    main()  # Tu función main() ya tiene todo el flujo
+
 if __name__ == "__main__":
-    main()
+    print("🚀 Iniciando daemon con schedule - Proyecto Línea Base (Mes 3)")
+    logging.info("Daemon iniciado con schedule")
+    
+    # PROGRAMACIÓN (ajusta según quieras probar)
+    # Cada 10 minutos (para pruebas rápidas)
+    schedule.every(10).minutes.do(run_full_pipeline)
+    
+    # O cada hora
+    # schedule.every().hour.do(run_full_pipeline)
+    
+    # O todos los días a las 9:00 AM
+    # schedule.every().day.at("09:00").do(run_full_pipeline)
+    
+    # Ejecución inicial inmediata
+    run_full_pipeline()
+    
+    # Loop infinito que revisa si hay jobs pendientes
+    while True:
+        schedule.run_pending()
+        time.sleep(60)  # Revisa cada minuto (bajo consumo)
