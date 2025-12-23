@@ -1,0 +1,43 @@
+# ============================================================
+# 📦 DEPENDENCIAS - Webhook Shopify Automation
+# ============================================================
+# Instalar con: pip install -r requirements.txt
+# ============================================================
+
+# Web Framework
+Flask==3.1.0
+
+# Data Processing
+pandas>=2.2.0
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# HTTP Requests (para Shopify API)
+requests>=2.31.0
+
+# Email
+# (smtplib viene incluido en Python)
+
+# =========================
+# 📋 OPCIONAL (para desarrollo)
+# =========================
+# pytest>=7.0.0        # Testing
+# black>=23.0.0        # Formatting
+# flake8>=6.0.0        # Linting
+
+# =========================
+# 📋 OPCIONAL (para deploy)
+# =========================
+# gunicorn>=21.0.0     # Production server
+# ngrok>=0.8.0         # Tunnel para desarrollo
+
+
+# Web Server (for production)
+gunicorn==21.2.0
+    
+
+# Future dependencies (commented out for now)
+# Database
+# psycopg2-binary==2.9.9  # PostgreSQL
+# SQLAlchemy==2.0.25

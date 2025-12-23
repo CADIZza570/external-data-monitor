@@ -1,45 +1,60 @@
 # ============================================================
-# 🚀 WEBHOOK SERVER – SHOPIFY AUTOMATION (v2.0)
+# 🚀 WEBHOOK SERVER – SHOPIFY AUTOMATION (v2.5)
 # ============================================================
 # Sistema de automatización que recibe webhooks reales o simulados
-# - Verificación HMAC para seguridad (Shopify real)
-# - Diagnósticos automáticos (stock bajo, sin ventas, datos faltantes)
-# - Logging dual (archivo + consola)
-# - Respuestas informativas para debugging
-# - Listo para producción
+# 
+# MEJORAS IMPLEMENTADAS (v2.5):
+# - ✅ Validación automática de configuración al iniciar
+# - ✅ Verificación HMAC para seguridad (Shopify real)
+# - ✅ Rate limiting (100 requests/hour por IP)
+# - ✅ Sanitización de errores (no expone información interna)
+# - ✅ Validación estricta de payload (tipo, estructura, límites)
+# - ✅ Retry logic para guardar CSV (3 intentos)
+# - ✅ DRY en funciones de alerta (helper _save_alert)
+# - ✅ Health check robusto (verifica dependencias)
+# - ✅ Límite de tamaño de payload (16MB)
+# - ✅ Logging dual (archivo + consola)
+# - ✅ Diagnósticos automáticos (stock bajo, sin ventas, datos faltantes)
+# - ✅ Respuestas informativas para debugging
+# - ✅ Listo para producción
 # ============================================================
 
 from flask import Flask, request, jsonify
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from datetime import datetime
 import logging
-import os
 import sys
 import hmac
 import hashlib
 import base64
 import pandas as pd
-from dotenv import load_dotenv
+import os
+import time
 
-# Cargar variables de entorno
-load_dotenv()
+# Importamos config y la función de validación centralizada
+from config_shared import (
+    SHOPIFY_WEBHOOK_SECRET,
+    LOW_STOCK_THRESHOLD,
+    NO_SALES_DAYS,
+    DEBUG_MODE,
+    OUTPUT_DIR,
+    LOG_DIR,
+    LOG_FILE,
+    validate_config  # ✅ Mejora v2.1: validación centralizada
+)
 
 # =========================
 # ⚙️ CONFIGURACIÓN GLOBAL
 # =========================
 
-OUTPUT_DIR = "output"
-LOG_DIR = "logs"
-LOG_FILE = f"{LOG_DIR}/webhook_server.log"
+# ✅ Mejora v2.5: Límite máximo de payload (protección DoS)
+MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
+MAX_PRODUCTS_PER_WEBHOOK = 10000  # Límite de productos por request
 
-# Crear carpetas si no existen
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(LOG_DIR, exist_ok=True)
-
-# Configuración desde .env o valores por defecto
-SHOPIFY_WEBHOOK_SECRET = os.getenv("SHOPIFY_WEBHOOK_SECRET", "tu_webhook_secret_aqui")
-LOW_STOCK_THRESHOLD = int(os.getenv("LOW_STOCK_THRESHOLD", 5))
-NO_SALES_DAYS = int(os.getenv("NO_SALES_DAYS", 60))
-DEBUG_MODE = os.getenv("DEBUG_MODE", "true").lower() == "true"
+# Ejecutamos validación al iniciar el servidor
+# Esto asegura que cualquier error de config se detecte antes de levantar Flask
+validate_config()  # 🔧 Mejora: self-check automático al iniciar
 
 # =========================
 # 📝 LOGGING MEJORADO (Archivo + Consola)
@@ -95,6 +110,7 @@ def verify_shopify_webhook(data: bytes, hmac_header: str, secret: str) -> bool:
         ).digest()
     ).decode('utf-8')
     
+    # ✅ Mejora: compare_digest previene timing attacks
     return hmac.compare_digest(calculated, hmac_header)
 
 
@@ -114,31 +130,69 @@ def is_simulation_mode(request) -> bool:
         return True
     return False
 
-
 # =========================
 # 📊 FUNCIONES DE DIAGNÓSTICO
 # =========================
 
-def alert_low_stock(df: pd.DataFrame, threshold: int = 5) -> dict:
+def _save_alert(df: pd.DataFrame, alert_type: str, message: str) -> str:
+    """
+    Helper para guardar alertas de manera DRY.
+    ✅ Mejora v2.5: Código común extraído + retry logic
+    
+    Args:
+        df: DataFrame con datos de alerta
+        alert_type: Tipo de alerta (low_stock, no_sales, etc.)
+        message: Mensaje para logging
+    
+    Returns:
+        Path del archivo guardado, o string vacío si falla
+    """
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = f"{OUTPUT_DIR}/{alert_type}_{ts}.csv"
+    
+    # ✅ Mejora v2.5: Retry logic para I/O
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            df.to_csv(path, index=False)
+            logger.warning(message)
+            return path
+        except IOError as e:
+            logger.error(f"Intento {attempt + 1}/{max_retries}: No se pudo guardar CSV {alert_type}: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(0.5)  # Espera antes de reintentar
+    
+    # Si todos los intentos fallan, retorna vacío pero no crashea
+    logger.error(f"❌ No se pudo guardar {alert_type} después de {max_retries} intentos")
+    return ""
+
+
+def alert_low_stock(df: pd.DataFrame, threshold: int = None) -> dict:
     """
     Detecta productos con stock bajo.
+    ✅ Mejora v2.5: threshold evaluado en runtime, no al importar
     
     Returns:
         dict con información de la alerta
     """
+    # ✅ Mejora: Evaluar default en runtime
+    if threshold is None:
+        threshold = LOW_STOCK_THRESHOLD
+    
     if "stock" not in df.columns:
         return {"triggered": False, "count": 0, "products": []}
     
     low_stock = df[df["stock"] <= threshold]
     
     if not low_stock.empty:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = f"{OUTPUT_DIR}/low_stock_{ts}.csv"
-        low_stock.to_csv(path, index=False)
+        # ✅ Mejora v2.5: Usa helper DRY + retry logic
+        path = _save_alert(
+            low_stock, 
+            "low_stock", 
+            f"🚨 ALERTA: {len(low_stock)} productos con stock <= {threshold}"
+        )
         
         products = low_stock[["product_id", "name", "stock"]].to_dict('records')
-        
-        logger.warning(f"🚨 ALERTA: {len(low_stock)} productos con stock <= {threshold}")
         
         return {
             "triggered": True,
@@ -151,13 +205,18 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = 5) -> dict:
     return {"triggered": False, "count": 0, "products": []}
 
 
-def alert_no_sales(df: pd.DataFrame, days_threshold: int = 60) -> dict:
+def alert_no_sales(df: pd.DataFrame, days_threshold: int = None) -> dict:
     """
     Detecta productos sin ventas recientes.
+    ✅ Mejora v2.5: days_threshold evaluado en runtime
     
     Returns:
         dict con información de la alerta
     """
+    # ✅ Mejora: Evaluar default en runtime
+    if days_threshold is None:
+        days_threshold = NO_SALES_DAYS
+    
     if "last_sold_date" not in df.columns:
         return {"triggered": False, "count": 0, "products": []}
     
@@ -168,11 +227,12 @@ def alert_no_sales(df: pd.DataFrame, days_threshold: int = 60) -> dict:
     no_sales = df_copy[df_copy['last_sold_date'] < threshold_date]
     
     if not no_sales.empty:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = f"{OUTPUT_DIR}/no_sales_{ts}.csv"
-        no_sales.to_csv(path, index=False)
-        
-        logger.warning(f"🚨 ALERTA: {len(no_sales)} productos sin ventas en {days_threshold} días")
+        # ✅ Mejora v2.5: Usa helper DRY + retry logic
+        path = _save_alert(
+            no_sales,
+            "no_sales",
+            f"🚨 ALERTA: {len(no_sales)} productos sin ventas en {days_threshold} días"
+        )
         
         return {
             "triggered": True,
@@ -200,11 +260,12 @@ def alert_missing_data(df: pd.DataFrame) -> dict:
     missing_rows = df[df[existing_cols].isnull().any(axis=1)]
     
     if not missing_rows.empty:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = f"{OUTPUT_DIR}/missing_data_{ts}.csv"
-        missing_rows.to_csv(path, index=False)
-        
-        logger.warning(f"🚨 ALERTA: {len(missing_rows)} filas con datos faltantes")
+        # ✅ Mejora v2.5: Usa helper DRY + retry logic
+        path = _save_alert(
+            missing_rows,
+            "missing_data",
+            f"🚨 ALERTA: {len(missing_rows)} filas con datos faltantes"
+        )
         
         return {
             "triggered": True,
@@ -246,12 +307,25 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
 def save_payload(df: pd.DataFrame, name: str = "webhook_data") -> str:
     """
     Guarda el payload recibido como CSV para auditoría.
+    ✅ Mejora v2.5: Retry logic
     """
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = f"{OUTPUT_DIR}/{name}_{ts}.csv"
-    df.to_csv(path, index=False)
-    logger.info(f"💾 Payload guardado: {path}")
-    return path
+    
+    # ✅ Mejora v2.5: Retry logic para I/O
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            df.to_csv(path, index=False)
+            logger.info(f"💾 Payload guardado: {path}")
+            return path
+        except IOError as e:
+            logger.error(f"Intento {attempt + 1}/{max_retries}: No se pudo guardar payload {name}: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(0.5)
+    
+    logger.error(f"❌ No se pudo guardar payload después de {max_retries} intentos")
+    return ""
 
 
 # =========================
@@ -259,6 +333,17 @@ def save_payload(df: pd.DataFrame, name: str = "webhook_data") -> str:
 # =========================
 
 app = Flask(__name__)
+
+# ✅ Mejora v2.5: Límite de tamaño de payload
+app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
+
+# ✅ Mejora v2.5: Rate limiting (100 requests/hour por IP)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["100 per hour"],
+    storage_uri="memory://"
+)
 
 
 # =========================
@@ -269,19 +354,32 @@ app = Flask(__name__)
 def health_check():
     """
     Endpoint para verificar que el servidor está vivo.
+    ✅ Mejora v2.5: Verifica dependencias críticas, no solo "server running"
+    
     Útil para monitoreo y servicios de hosting.
     """
+    checks = {
+        "server": "ok",
+        "output_dir": os.path.exists(OUTPUT_DIR),
+        "log_dir": os.path.exists(LOG_DIR),
+        "config_loaded": SHOPIFY_WEBHOOK_SECRET is not None
+    }
+    
+    all_ok = all(checks.values())
+    status_code = 200 if all_ok else 503
+    
     return jsonify({
-        "status": "healthy",
+        "status": "healthy" if all_ok else "degraded",
         "service": "webhook-shopify-automation",
-        "version": "2.0",
+        "version": "2.5",
         "timestamp": datetime.now().isoformat(),
+        "checks": checks,
         "config": {
             "low_stock_threshold": LOW_STOCK_THRESHOLD,
             "no_sales_days": NO_SALES_DAYS,
             "debug_mode": DEBUG_MODE
         }
-    }), 200
+    }), status_code
 
 
 # =========================
@@ -309,15 +407,16 @@ def status():
         }
     }), 200
 
-
 # =========================
 # 🛒 WEBHOOK SHOPIFY
 # =========================
 
 @app.route("/webhook/shopify", methods=["POST"])
+@limiter.limit("100 per hour")  # ✅ Mejora v2.5: Rate limiting por endpoint
 def webhook_shopify():
     """
     Recibe webhooks de Shopify (reales o simulados).
+    ✅ Mejora v2.5: Validación de input + sanitización de errores
     
     Headers esperados (Shopify real):
         - X-Shopify-Hmac-Sha256: Firma HMAC
@@ -351,10 +450,20 @@ def webhook_shopify():
         # Parsear payload
         payload = request.get_json()
         
+        # ✅ Mejora v2.5: Validación estricta de payload
         if not payload:
+            logger.warning("⚠️ Payload vacío recibido")
             return jsonify({
                 "status": "error",
                 "message": "No JSON payload received"
+            }), 400
+        
+        # ✅ Mejora v2.5: Validar tipo de payload
+        if not isinstance(payload, dict):
+            logger.warning(f"⚠️ Payload con tipo incorrecto: {type(payload)}")
+            return jsonify({
+                "status": "error",
+                "message": "Invalid payload format (must be JSON object)"
             }), 400
         
         # Convertir a DataFrame
@@ -362,6 +471,21 @@ def webhook_shopify():
         
         # Formato simulación (productos con variantes)
         if "products" in payload:
+            # ✅ Mejora v2.5: Validar estructura de products
+            if not isinstance(payload["products"], list):
+                return jsonify({
+                    "status": "error",
+                    "message": "Invalid payload: 'products' must be an array"
+                }), 400
+            
+            # ✅ Mejora v2.5: Límite de productos (protección DoS)
+            if len(payload["products"]) > MAX_PRODUCTS_PER_WEBHOOK:
+                logger.warning(f"⚠️ Payload excede límite: {len(payload['products'])} productos")
+                return jsonify({
+                    "status": "error",
+                    "message": f"Too many products (max {MAX_PRODUCTS_PER_WEBHOOK})"
+                }), 400
+            
             for product in payload.get("products", []):
                 for variant in product.get("variants", []):
                     rows.append({
@@ -383,6 +507,13 @@ def webhook_shopify():
         
         # Formato webhook de orden
         elif "line_items" in payload:
+            # ✅ Mejora v2.5: Validar estructura
+            if not isinstance(payload["line_items"], list):
+                return jsonify({
+                    "status": "error",
+                    "message": "Invalid payload: 'line_items' must be an array"
+                }), 400
+            
             for item in payload.get("line_items", []):
                 rows.append({
                     "product_id": item.get("variant_id"),
@@ -392,6 +523,7 @@ def webhook_shopify():
                 })
         
         if not rows:
+            logger.info("⚠️ No se encontraron productos en el payload")
             return jsonify({
                 "status": "warning",
                 "message": "No products found in payload"
@@ -404,8 +536,8 @@ def webhook_shopify():
         
         # Ejecutar diagnósticos
         alerts = {
-            "low_stock": alert_low_stock(df, LOW_STOCK_THRESHOLD),
-            "no_sales": alert_no_sales(df, NO_SALES_DAYS),
+            "low_stock": alert_low_stock(df),
+            "no_sales": alert_no_sales(df),
             "missing_data": alert_missing_data(df)
         }
         
@@ -443,10 +575,11 @@ def webhook_shopify():
         return jsonify(response), 200
     
     except Exception as e:
-        logger.error(f"❌ Error procesando webhook: {str(e)}")
+        # ✅ Mejora v2.5: Sanitización de errores (no expone internals)
+        logger.error(f"❌ Error procesando webhook: {str(e)}", exc_info=True)
         return jsonify({
             "status": "error",
-            "message": str(e)
+            "message": "Internal server error"  # Generic message para cliente
         }), 500
 
 
@@ -455,10 +588,12 @@ def webhook_shopify():
 # =========================
 
 @app.route("/webhook/csv", methods=["POST"])
+@limiter.limit("50 per hour")  # ✅ Mejora v2.5: Rate limiting
 def webhook_csv():
     """
     Recibe archivos CSV para procesar.
     Útil para carga manual de datos.
+    ✅ Mejora v2.5: Sanitización de errores
     """
     try:
         file = request.files.get("file")
@@ -474,7 +609,7 @@ def webhook_csv():
         payload_file = save_payload(df, "csv_upload")
         
         alerts = {
-            "low_stock": alert_low_stock(df, LOW_STOCK_THRESHOLD),
+            "low_stock": alert_low_stock(df),
             "missing_data": alert_missing_data(df)
         }
         
@@ -488,10 +623,11 @@ def webhook_csv():
         }), 200
     
     except Exception as e:
-        logger.error(f"❌ Error procesando CSV: {str(e)}")
+        # ✅ Mejora v2.5: Sanitización de errores
+        logger.error(f"❌ Error procesando CSV: {str(e)}", exc_info=True)
         return jsonify({
             "status": "error",
-            "message": str(e)
+            "message": "Error processing CSV file"  # Generic
         }), 500
 
 
@@ -519,7 +655,7 @@ def webhook_amazon():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("🚀 WEBHOOK SERVER v2.0 - Shopify Automation")
+    print("🚀 WEBHOOK SERVER v2.5 - Shopify Automation")
     print("=" * 60)
     print(f"📍 Server: http://127.0.0.1:5001")
     print(f"📊 Health: http://127.0.0.1:5001/health")
@@ -534,6 +670,8 @@ if __name__ == "__main__":
     print(f"   LOW_STOCK_THRESHOLD: {LOW_STOCK_THRESHOLD}")
     print(f"   NO_SALES_DAYS: {NO_SALES_DAYS}")
     print(f"   DEBUG_MODE: {DEBUG_MODE}")
+    print(f"   RATE_LIMIT: 100 requests/hour")
+    print(f"   MAX_PAYLOAD: {MAX_CONTENT_LENGTH / 1024 / 1024}MB")
     print("=" * 60)
     
     app.run(host="0.0.0.0", port=5001, debug=DEBUG_MODE)
