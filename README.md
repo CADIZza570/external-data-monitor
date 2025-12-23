@@ -169,6 +169,16 @@ python-automation/
 - [ ] Excel file support (read_excel)
 - [ ] Data merging from multiple sources
 
+### Mes 3 - Ejecuciones automáticas (Python + schedule)
+- El script ahora corre como daemon local.
+- Intervalo actual: cada 10 minutos (para pruebas).
+- Próximo: migración a cron en servidor real.
+- Control total: sin dependencias externas.
+
+Usage daemon:
+```bash
+python3 api_data_fetcher.py
+
 ## Progress Status
 
 **Current:** Mes 2 (80% complete) - 5-6 weeks ahead of schedule  
@@ -189,3 +199,146 @@ Personal learning project - Not licensed for commercial use yet.
 **Part of:** [DEFINITIVE PLAN - Python + Automations (6 months)](PLAN.md)  
 **Author:** Constanza Araya  
 **Location:** Columbus, Ohio, US
+
+# 🚀 Webhook Automation System – Shopify (MVP)
+
+## 📌 Descripción general
+
+Sistema de automatización en Python que recibe webhooks (simulados o reales), procesa datos de productos, genera diagnósticos automáticos y guarda evidencia en archivos CSV.
+
+Este proyecto está diseñado bajo la filosofía de **sistemas vivos, mantenibles y vendibles**, enfocado en automatizaciones reales para e‑commerce.
+
+---
+
+## 🧠 Qué hace el sistema
+
+* Recibe webhooks vía **Flask** (`POST`)
+* Procesa payloads tipo Shopify
+* Convierte datos a `DataFrame`
+* Ejecuta diagnósticos automáticos:
+
+  * 📉 Stock bajo
+  * 💤 Productos sin ventas
+  * ⚠️ Datos faltantes
+* Guarda resultados en CSV auditables
+* Devuelve respuesta HTTP clara
+
+---
+
+## 🗂️ Estructura del proyecto
+
+```
+tu_proyecto/
+│
+├── webhook_server.py        # Servidor Flask (entrada principal)
+├── config.py                # Configuración global (thresholds, paths)
+│
+├── fetchers/
+│   ├── __init__.py
+│   └── fetchers.py          # Ingesta de datos (local / APIs)
+│
+├── alerts/
+│   ├── __init__.py
+│   └── alerts.py            # Lógica de alertas
+│
+├── diagnostics/
+│   ├── __init__.py
+│   └── diagnostics.py       # Limpieza, validación y guardado
+│
+├── output/                  # Evidencia generada (CSV)
+│
+├── logs/                    # Logs de ejecución
+└── README.md
+```
+
+---
+
+## ▶️ Cómo ejecutar el servidor
+
+Desde la carpeta del proyecto:
+
+```bash
+python3 webhook_server.py
+```
+
+Servidor disponible en:
+
+```
+http://127.0.0.1:5001
+```
+
+---
+
+## 🧪 Cómo probar (simulación Shopify)
+
+```bash
+curl -X POST http://127.0.0.1:5001/webhook/shopify \
+-H "Content-Type: application/json" \
+-d '{
+  "products": [
+    {
+      "title": "Camiseta Roja",
+      "variants": [
+        {
+          "id": 101,
+          "title": "S",
+          "inventory_quantity": 3,
+          "last_sold_date": "2025-12-10"
+        }
+      ]
+    }
+  ]
+}'
+```
+
+---
+
+## 📂 Resultados esperados
+
+Después de una llamada exitosa:
+
+* `output/shopify_webhook_*.csv`
+* `output/low_stock_*.csv`
+* `output/no_sales_*.csv`
+
+Estos archivos son **evidencia directa** del diagnóstico.
+
+---
+
+## 🧱 Estado del proyecto
+
+* ✅ MVP funcional
+* ✅ Arquitectura modular
+* ✅ Listo para integración real con Shopify
+* ✅ Automatizable con cron / schedule
+
+---
+
+## 🚀 Próximos pasos
+
+1. Conectar Shopify real (API + Webhooks oficiales)
+2. Automatizar ejecución con `cron` o `schedule`
+3. Agregar notificaciones (email / Slack)
+4. Empaquetar como servicio vendible
+
+---
+# Python Automation: Shopify Webhook & CSV Alerts
+
+## Descripción
+Proyecto de automatización en Python para:
+- Recibir webhooks de Shopify (productos, stock, ventas).
+- Generar alertas de bajo stock o sin ventas.
+- Crear CSV de reportes y registros históricos.
+- Integración segura usando `.env` para variables de configuración.
+
+Se enfoca en **Python puro + cron/schedule** para sistemas mantenibles.
+
+---
+
+## Estructura del proyecto
+
+
+
+## 👤 Autor
+
+Gonzalo Diaz – Automatización & Sistemas Python
