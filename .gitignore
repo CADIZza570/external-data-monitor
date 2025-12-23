@@ -28,6 +28,11 @@ __pycache__/
 venv/
 env/
 ENV/
+security.env
+.env.*
+secrets.*
+*.key
+*.pem
 
 # =====================
 # Sistema operativo
