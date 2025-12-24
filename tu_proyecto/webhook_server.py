@@ -348,6 +348,29 @@ def save_payload(df: pd.DataFrame, name: str = "webhook_data") -> str:
 
 app = Flask(__name__)
 
+@app.route('/')
+def home():
+    return "¡Servidor webhook funcionando! ✅"
+
+# Tu ruta del webhook (ajusta según lo que necesites)
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    try:
+        data = request.get_json()
+        print(f"Webhook recibido: {data}")
+        
+        # Aquí va tu lógica del webhook
+        # ...
+        
+        return jsonify({"status": "success", "message": "Webhook procesado"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Esto solo se ejecuta cuando corres el archivo directamente
+# NO afecta cuando Gunicorn lo ejecuta
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=8000)
+
 # ✅ Mejora v2.5: Límite de tamaño de payload
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
