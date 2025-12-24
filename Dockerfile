@@ -8,4 +8,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Usa gunicorn (mejor para producción)
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "webhook_server:app"]
+CMD gunicorn --bind 0.0.0.0:$PORT tu_proyecto.webhook_server:app
