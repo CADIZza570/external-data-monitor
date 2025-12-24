@@ -16,6 +16,9 @@ python-dotenv>=1.0.0
 # HTTP Requests (para Shopify API)
 requests>=2.31.0
 
+schedule==1.2.0
+
+
 # Email
 # (smtplib viene incluido en Python)
 
