@@ -41,8 +41,9 @@ from config_shared import (
     OUTPUT_DIR,
     LOG_DIR,
     LOG_FILE,
-    validate_config  # ✅ Mejora v2.1: validación centralizada
-)
+    validate_config
+)    
+
 # Importar funciones de base de datos
 from database import save_webhook, get_webhooks, get_webhook_count
 
@@ -56,7 +57,7 @@ MAX_PRODUCTS_PER_WEBHOOK = 10000  # Límite de productos por request
 
 # Ejecutamos validación al iniciar el servidor
 # Esto asegura que cualquier error de config se detecte antes de levantar Flask
-validate_config()  # 🔧 Mejora: self-check automático al iniciar
+validate_config(strict=False)  # ✅ Modo no-estricto para Railway
 
 # =========================
 # 📝 LOGGING MEJORADO (Archivo + Consola)
@@ -984,12 +985,15 @@ def webhook_amazon():
 # =========================
 
 if __name__ == "__main__":
+    # ✅ RAILWAY FIX: Usar puerto de variable de entorno
+    port = int(os.environ.get('PORT', 5001))
+    
     print("=" * 60)
     print("🚀 WEBHOOK SERVER v2.5 - Shopify Automation")
     print("=" * 60)
-    print(f"📍 Server: http://127.0.0.1:5001")
-    print(f"📊 Health: http://127.0.0.1:5001/health")
-    print(f"📈 Status: http://127.0.0.1:5001/status")
+    print(f"📍 Server: http://0.0.0.0:{port}")
+    print(f"📊 Health: http://0.0.0.0:{port}/health")
+    print(f"📈 Status: http://0.0.0.0:{port}/status")
     print("=" * 60)
     print("📋 Endpoints disponibles:")
     print("   POST /webhook/shopify  → Recibe webhooks de Shopify")
@@ -1002,6 +1006,7 @@ if __name__ == "__main__":
     print(f"   DEBUG_MODE: {DEBUG_MODE}")
     print(f"   RATE_LIMIT: 100 requests/hour")
     print(f"   MAX_PAYLOAD: {MAX_CONTENT_LENGTH / 1024 / 1024}MB")
+    print(f"   PORT: {port} (Railway: {os.environ.get('PORT', 'not set')})")
     print("=" * 60)
     
-    app.run(host="0.0.0.0", port=5001, debug=DEBUG_MODE)
+    app.run(host="0.0.0.0", port=port, debug=DEBUG_MODE)
