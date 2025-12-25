@@ -18,6 +18,7 @@ requests>=2.31.0
 
 schedule==1.2.0
 
+flask-limiter==3.5.0
 
 # Email
 # (smtplib viene incluido en Python)
