@@ -33,6 +33,7 @@ security.env
 secrets.*
 *.key
 *.pem
+*.db
 
 # =====================
 # Sistema operativo
@@ -53,4 +54,4 @@ Thumbs.db
 # =====================
 *.tmp
 temp/
-tmp/
+tmp/archivo_critico
