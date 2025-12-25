@@ -1,0 +1,36 @@
+# Outputs
+output/
+outputs/
+*.csv
+*.json
+
+# Logs
+logs/
+*.log
+
+# Backups
+backups/
+
+# Data
+*.xlsx
+*.db
+webhooks.db
+
+# Python
+__pycache__/
+*.pyc
+.Python
+.venv/
+venv/
+
+# OS
+.DS_Store
+.git/
+
+# Tests
+test_*.py
+tests/
+
+# Development
+tu_proyecto/test_*.py
+tu_proyecto/tests/
