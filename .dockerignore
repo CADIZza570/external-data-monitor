@@ -1,36 +1,50 @@
-# Outputs
+# ==========================================
+# EXCLUDE ENTIRE tu_proyecto FOLDER
+# (Files are duplicated in root)
+# ==========================================
+tu_proyecto/
+
+# ==========================================
+# OUTPUTS
+# ==========================================
 output/
 outputs/
 *.csv
-*.json
 
-# Logs
+# ==========================================
+# LOGS
+# ==========================================
 logs/
 *.log
 
-# Backups
+# ==========================================
+# BACKUPS & DATA
+# ==========================================
 backups/
-
-# Data
 *.xlsx
 *.db
-webhooks.db
 
-# Python
+# ==========================================
+# PYTHON CACHE
+# ==========================================
 __pycache__/
 *.pyc
 .Python
-.venv/
-venv/
 
+# ==========================================
 # OS
+# ==========================================
 .DS_Store
-.git/
 
-# Tests
-test_*.py
-tests/
-
-# Development
-tu_proyecto/test_*.py
-tu_proyecto/tests/
+# ==========================================
+# DEV FILES
+# ==========================================
+analyze_*.py
+generate_*.py
+reorganize_*.py
+run_*.py
+test_manual.py
+security.env
+api_data.*
+create_structure.sh
+error_log.txt
