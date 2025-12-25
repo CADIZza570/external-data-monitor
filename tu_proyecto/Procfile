@@ -1,1 +1,2 @@
-web: python webhook_server.py
+web: cd tu_proyecto && python webhook_server.py
+git add
