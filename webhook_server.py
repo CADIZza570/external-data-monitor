@@ -31,6 +31,9 @@ import base64
 import pandas as pd
 import os
 import time
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Importamos config y la función de validación centralizada
 from config_shared import (
@@ -41,6 +44,10 @@ from config_shared import (
     OUTPUT_DIR,
     LOG_DIR,
     LOG_FILE,
+    EMAIL_SENDER,           
+    EMAIL_PASSWORD,         
+    EMAIL_SMTP_SERVER,      
+    EMAIL_SMTP_PORT,        
     validate_config
 )    
 
@@ -148,7 +155,76 @@ def is_simulation_mode(request) -> bool:
 # =========================
 # 📊 FUNCIONES DE DIAGNÓSTICO
 # =========================
+def send_email_alert(subject: str, products_list: list) -> bool:
+    """
+    Envía email de alerta cuando se detecta stock bajo u otros problemas.
+    
+    Args:
+        subject: Asunto del email
+        products_list: Lista de productos con alerta (max 10)
+    
+    Returns:
+        True si envío exitoso, False si falla
+    """
+    # Verificar que email esté configurado
+    if not EMAIL_SENDER or not EMAIL_PASSWORD:
+        logger.warning("⚠️ Email no configurado, saltando alerta")
+        return False
+    
+    try:
+        # Crear mensaje
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_SENDER
+        msg['To'] = EMAIL_SENDER  # Enviar a ti mismo
+        msg['Subject'] = subject
+        
+        # Crear body del email
+        body = f"""
+🚨 ALERTA DE INVENTARIO - Shopify Webhook System
 
+Se ha detectado la siguiente alerta en tu tienda:
+
+{subject}
+
+Productos afectados ({len(products_list)}):
+"""
+        
+        # Añadir lista de productos
+        for i, product in enumerate(products_list[:10], 1):  # Max 10
+            body += f"\n{i}. {product.get('name', 'Sin nombre')}"
+            if 'stock' in product:
+                body += f" - Stock: {product['stock']} unidades"
+            if 'sku' in product:
+                body += f" - SKU: {product['sku']}"
+        
+        if len(products_list) > 10:
+            body += f"\n\n... y {len(products_list) - 10} productos más"
+        
+        body += f"""
+
+---
+Ver detalles completos:
+https://tranquil-freedom-production.up.railway.app/webhooks/history
+
+Sistema de Alertas Automáticas
+Powered by Railway + Shopify
+        """
+        
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Enviar email
+        server = smtplib.SMTP_SSL(EMAIL_SMTP_SERVER, EMAIL_SMTP_PORT)
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        
+        logger.info(f"✅ Email enviado: {subject}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error enviando email: {e}")
+        return False
+    
 def _save_alert(df: pd.DataFrame, alert_type: str, message: str) -> str:
     """
     Helper para guardar alertas de manera DRY.
@@ -209,6 +285,12 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None) -> dict:
         
         products = low_stock[["product_id", "name", "stock"]].to_dict('records')
         
+        # ✅ NUEVO: Enviar email de alerta
+        send_email_alert(
+            f"🚨 Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
+            products[:10]
+        )
+
         return {
             "triggered": True,
             "count": len(low_stock),
