@@ -33,6 +33,9 @@ import os
 import time
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
+import gspread
+from google.oauth2.service_account import Credentials
+import json
 
 # Importamos config y la función de validación centralizada
 from config_shared import (
@@ -51,6 +54,9 @@ from config_shared import (
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 # Configurar Discord Webhook
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
+# Configurar Google Sheets
+GOOGLE_SHEETS_CREDENTIALS = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
+GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 
 # Importar funciones de base de datos
 from database import save_webhook, get_webhooks, get_webhook_count
@@ -319,6 +325,61 @@ def send_discord_alert(alert_type: str, products_list: list) -> bool:
     except Exception as e:
         logger.error(f"❌ Error enviando Discord alert: {e}")
         return False    
+def send_to_google_sheets(alert_type: str, products_list: list) -> bool:
+    """
+    Envía datos a Google Sheets.
+    
+    Args:
+        alert_type: Tipo de alerta
+        products_list: Lista de productos
+    
+    Returns:
+        True si exitoso, False si falla
+    """
+    if not GOOGLE_SHEETS_CREDENTIALS or not GOOGLE_SHEET_ID:
+        logger.warning("⚠️ Google Sheets no configurado, saltando export")
+        return False
+    
+    try:
+        # Parsear credenciales JSON
+        creds_dict = json.loads(GOOGLE_SHEETS_CREDENTIALS)
+        
+        # Configurar scope
+        scope = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive'
+        ]
+        
+        # Autenticar
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        client = gspread.authorize(creds)
+        
+        # Abrir sheet
+        sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
+        
+        # Preparar datos
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Añadir cada producto como una fila
+        for product in products_list:
+            row = [
+                timestamp,
+                product.get('name', 'Sin nombre'),
+                product.get('sku', 'N/A'),
+                product.get('stock', 0),
+                product.get('price', 'N/A'),
+                alert_type,
+                'connie-dev-studio.myshopify.com'
+            ]
+            sheet.append_row(row)
+        
+        logger.info(f"✅ Google Sheets actualizado: {len(products_list)} productos")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error escribiendo en Google Sheets: {e}")
+        return False    
     
 def _save_alert(df: pd.DataFrame, alert_type: str, message: str) -> str:
     """
@@ -389,6 +450,12 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None) -> dict:
         # ✅ NUEVO: Enviar Discord alert
         send_discord_alert(
             f"Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
+            products[:10]
+        )
+
+        # ✅ NUEVO: Exportar a Google Sheets
+        send_to_google_sheets(
+            f"Stock Bajo <= {threshold}",
             products[:10]
         )
 
