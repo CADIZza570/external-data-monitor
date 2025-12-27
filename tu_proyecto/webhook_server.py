@@ -325,6 +325,7 @@ def send_discord_alert(alert_type: str, products_list: list) -> bool:
     except Exception as e:
         logger.error(f"❌ Error enviando Discord alert: {e}")
         return False    
+
 def send_to_google_sheets(alert_type: str, products_list: list) -> bool:
     """
     Envía datos a Google Sheets.
@@ -381,6 +382,277 @@ def send_to_google_sheets(alert_type: str, products_list: list) -> bool:
         logger.error(f"❌ Error escribiendo en Google Sheets: {e}")
         return False    
     
+def process_new_order(order_data: dict) -> bool:
+    """
+    Procesa nueva orden y envía notificaciones.
+    
+    Args:
+        order_data: Datos de la orden desde Shopify
+    
+    Returns:
+        True si procesamiento exitoso
+    """
+    try:
+        # Extraer información clave
+        order_number = order_data.get('order_number', 'N/A')
+        order_id = order_data.get('id', 'N/A')
+        customer = order_data.get('customer', {})
+        customer_name = f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
+        customer_email = customer.get('email', 'No email')
+        
+        total_price = order_data.get('total_price', '0.00')
+        currency = order_data.get('currency', 'USD')
+        
+        # Productos en la orden
+        line_items = order_data.get('line_items', [])
+        products_summary = []
+        
+        for item in line_items:
+            product_info = {
+                'name': item.get('title', 'Sin nombre'),
+                'quantity': item.get('quantity', 0),
+                'price': item.get('price', '0.00'),
+                'sku': item.get('sku', 'N/A')
+            }
+            products_summary.append(product_info)
+        
+        # Dirección de envío
+        shipping = order_data.get('shipping_address', {})
+        shipping_address = f"{shipping.get('address1', '')}, {shipping.get('city', '')}, {shipping.get('province', '')} {shipping.get('zip', '')}"
+        
+        logger.info(f"🛒 Nueva orden recibida: #{order_number} - {customer_name} - ${total_price}")
+        
+        # Enviar a Discord
+        send_discord_order_alert(order_number, customer_name, customer_email, 
+                                 products_summary, total_price, currency, shipping_address)
+        
+        # Enviar Email
+        send_email_order_alert(order_number, customer_name, customer_email,
+                              products_summary, total_price, currency, shipping_address)
+        
+        # Guardar en Google Sheets
+        save_order_to_sheets(order_number, customer_name, customer_email,
+                            products_summary, total_price, currency, shipping_address)
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error procesando orden: {e}")
+        return False
+
+def send_discord_order_alert(order_number: str, customer_name: str, customer_email: str,
+                             products: list, total: str, currency: str, address: str) -> bool:
+    """
+    Envía alerta de nueva orden a Discord.
+    """
+    if not DISCORD_WEBHOOK_URL:
+        logger.warning("⚠️ Discord webhook no configurado")
+        return False
+    
+    try:
+        # Crear lista de productos
+        productos_texto = ""
+        for i, product in enumerate(products[:10], 1):
+            productos_texto += f"\n{i}. **{product.get('name', 'Sin nombre')}**"
+            productos_texto += f"\n   📦 Cantidad: **{product.get('quantity', 0)}**"
+            productos_texto += f"\n   💵 Precio: ${product.get('price', '0.00')}"
+            if product.get('sku') and product.get('sku') != 'N/A':
+                productos_texto += f"\n   🏷️ SKU: {product.get('sku')}"
+            productos_texto += "\n"
+        
+        # Crear embed de Discord
+        embed = {
+            "title": f"🛒 Nueva Orden #{order_number}",
+            "description": f"**¡Tienes una nueva venta!**",
+            "color": 0x00FF00,  # Verde (éxito)
+            "fields": [
+                {
+                    "name": "👤 Cliente",
+                    "value": f"{customer_name}\n📧 {customer_email}",
+                    "inline": False
+                },
+                {
+                    "name": "🛍️ Productos",
+                    "value": productos_texto,
+                    "inline": False
+                },
+                {
+                    "name": "💰 Total",
+                    "value": f"**${total} {currency}**",
+                    "inline": True
+                },
+                {
+                    "name": "📍 Envío",
+                    "value": address if address.strip() else "Sin dirección",
+                    "inline": False
+                },
+                {
+                    "name": "⏰ Timestamp",
+                    "value": f"<t:{int(time.time())}:R>",
+                    "inline": True
+                }
+            ],
+            "footer": {
+                "text": "Sistema de Alertas Automáticas • Shopify Orders"
+            }
+        }
+        
+        # Payload de Discord
+        payload = {
+            "username": "Shopify Order Bot",
+            "avatar_url": "https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg",
+            "embeds": [embed]
+        }
+        
+        # Enviar a Discord
+        import requests
+        response = requests.post(
+            DISCORD_WEBHOOK_URL,
+            json=payload,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        if response.status_code == 204:
+            logger.info(f"✅ Discord order alert enviada: #{order_number}")
+            return True
+        else:
+            logger.error(f"❌ Discord error: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Error enviando Discord order alert: {e}")
+        return False
+
+def send_email_order_alert(order_number: str, customer_name: str, customer_email: str,
+                          products: list, total: str, currency: str, address: str) -> bool:
+    """
+    Envía email de alerta de nueva orden.
+    """
+    if not SENDGRID_API_KEY or not EMAIL_SENDER:
+        logger.warning("⚠️ Email no configurado")
+        return False
+    
+    try:
+        # Crear lista de productos
+        productos_texto = ""
+        for i, product in enumerate(products[:10], 1):
+            productos_texto += f"\n{i}. {product.get('name', 'Sin nombre')}"
+            productos_texto += f"\n   Cantidad: {product.get('quantity', 0)}"
+            productos_texto += f"\n   Precio: ${product.get('price', '0.00')}"
+            if product.get('sku') and product.get('sku') != 'N/A':
+                productos_texto += f"\n   SKU: {product.get('sku')}"
+            productos_texto += "\n"
+        
+        # Crear body del email
+        body = f"""
+🛒 NUEVA ORDEN RECIBIDA - Shopify
+
+Orden #{order_number}
+
+════════════════════════════════════════
+
+CLIENTE:
+Nombre: {customer_name}
+Email: {customer_email}
+
+════════════════════════════════════════
+
+PRODUCTOS:
+{productos_texto}
+
+════════════════════════════════════════
+
+TOTAL: ${total} {currency}
+
+════════════════════════════════════════
+
+DIRECCIÓN DE ENVÍO:
+{address if address.strip() else 'Sin dirección registrada'}
+
+════════════════════════════════════════
+
+Ver orden completa en Shopify:
+https://connie-dev-studio.myshopify.com/admin/orders
+
+Sistema de Alertas Automáticas
+Powered by Railway + Shopify
+        """
+        
+        # Crear mensaje
+        message = Mail(
+            from_email=EMAIL_SENDER,
+            to_emails=EMAIL_SENDER,
+            subject=f"🛒 Nueva Orden #{order_number} - {customer_name}",
+            plain_text_content=body
+        )
+        
+        # Enviar con SendGrid
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
+        
+        logger.info(f"✅ Email de orden enviado: #{order_number} (status: {response.status_code})")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error enviando email de orden: {e}")
+        return False
+
+def save_order_to_sheets(order_number: str, customer_name: str, customer_email: str,
+                        products: list, total: str, currency: str, address: str) -> bool:
+    """
+    Guarda orden en Google Sheets.
+    """
+    if not GOOGLE_SHEETS_CREDENTIALS or not GOOGLE_SHEET_ID:
+        logger.warning("⚠️ Google Sheets no configurado")
+        return False
+    
+    try:
+        # Parsear credenciales JSON
+        creds_dict = json.loads(GOOGLE_SHEETS_CREDENTIALS)
+        
+        # Configurar scope
+        scope = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive'
+        ]
+        
+        # Autenticar
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        client = gspread.authorize(creds)
+        
+        # Abrir sheet
+        sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
+        
+        # Preparar datos
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Crear resumen de productos
+        productos_resumen = ", ".join([f"{p.get('name')} (x{p.get('quantity')})" for p in products[:3]])
+        if len(products) > 3:
+            productos_resumen += f" +{len(products)-3} más"
+        
+        # Añadir fila
+        row = [
+            timestamp,
+            f"Orden #{order_number}",
+            customer_name,
+            customer_email,
+            productos_resumen,
+            f"${total} {currency}",
+            "Nueva Orden",
+            'connie-dev-studio.myshopify.com'
+        ]
+        
+        sheet.append_row(row)
+        
+        logger.info(f"✅ Orden guardada en Sheets: #{order_number}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error guardando orden en Sheets: {e}")
+        return False
+                    
 def _save_alert(df: pd.DataFrame, alert_type: str, message: str) -> str:
     """
     Helper para guardar alertas de manera DRY.
@@ -839,6 +1111,18 @@ def webhook_shopify():
                 "message": "Invalid payload format (must be JSON object)"
             }), 400
         
+        elif topic == 'orders/create':
+        logger.info(f"🛒 Procesando nueva orden")
+        
+        # Procesar orden
+        process_new_order(payload)
+        
+        return jsonify({
+            "status": "success",
+            "message": "Order processed successfully",
+            "order_number": payload.get('order_number', 'N/A')
+        }), 200
+    
         # Convertir a DataFrame
         rows = []
         
