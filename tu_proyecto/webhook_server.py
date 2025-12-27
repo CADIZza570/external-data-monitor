@@ -31,9 +31,8 @@ import base64
 import pandas as pd
 import os
 import time
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 # Importamos config y la función de validación centralizada
 from config_shared import (
@@ -44,10 +43,8 @@ from config_shared import (
     OUTPUT_DIR,
     LOG_DIR,
     LOG_FILE,
-    EMAIL_SENDER,           
-    EMAIL_PASSWORD,         
-    EMAIL_SMTP_SERVER,      
-    EMAIL_SMTP_PORT,        
+    EMAIL_SENDER,
+    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY"),
     validate_config
 )    
 
@@ -157,7 +154,7 @@ def is_simulation_mode(request) -> bool:
 # =========================
 def send_email_alert(subject: str, products_list: list) -> bool:
     """
-    Envía email de alerta cuando se detecta stock bajo u otros problemas.
+    Envía email de alerta usando SendGrid API.
     
     Args:
         subject: Asunto del email
@@ -166,18 +163,12 @@ def send_email_alert(subject: str, products_list: list) -> bool:
     Returns:
         True si envío exitoso, False si falla
     """
-    # Verificar que email esté configurado
-    if not EMAIL_SENDER or not EMAIL_PASSWORD:
-        logger.warning("⚠️ Email no configurado, saltando alerta")
+    # Verificar que SendGrid esté configurado
+    if not SENDGRID_API_KEY or not EMAIL_SENDER:
+        logger.warning("⚠️ SendGrid no configurado, saltando alerta")
         return False
     
     try:
-        # Crear mensaje
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_SENDER
-        msg['To'] = EMAIL_SENDER  # Enviar a ti mismo
-        msg['Subject'] = subject
-        
         # Crear body del email
         body = f"""
 🚨 ALERTA DE INVENTARIO - Shopify Webhook System
@@ -190,7 +181,7 @@ Productos afectados ({len(products_list)}):
 """
         
         # Añadir lista de productos
-        for i, product in enumerate(products_list[:10], 1):  # Max 10
+        for i, product in enumerate(products_list[:10], 1):
             body += f"\n{i}. {product.get('name', 'Sin nombre')}"
             if 'stock' in product:
                 body += f" - Stock: {product['stock']} unidades"
@@ -207,22 +198,26 @@ Ver detalles completos:
 https://tranquil-freedom-production.up.railway.app/webhooks/history
 
 Sistema de Alertas Automáticas
-Powered by Railway + Shopify
+Powered by Railway + Shopify + SendGrid
         """
         
-        msg.attach(MIMEText(body, 'plain'))
+        # Crear mensaje
+        message = Mail(
+            from_email=EMAIL_SENDER,
+            to_emails=EMAIL_SENDER,
+            subject=subject,
+            plain_text_content=body
+        )
         
-        # Enviar email
-        server = smtplib.SMTP_SSL(EMAIL_SMTP_SERVER, EMAIL_SMTP_PORT)
-        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
+        # Enviar con SendGrid
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
         
-        logger.info(f"✅ Email enviado: {subject}")
+        logger.info(f"✅ Email enviado via SendGrid: {subject} (status: {response.status_code})")
         return True
         
     except Exception as e:
-        logger.error(f"❌ Error enviando email: {e}")
+        logger.error(f"❌ Error enviando email con SendGrid: {e}")
         return False
     
 def _save_alert(df: pd.DataFrame, alert_type: str, message: str) -> str:
