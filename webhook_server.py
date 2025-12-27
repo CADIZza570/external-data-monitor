@@ -49,6 +49,8 @@ from config_shared import (
 
 # Configurar SendGrid API Key
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+# Configurar Discord Webhook
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
 # Importar funciones de base de datos
 from database import save_webhook, get_webhooks, get_webhook_count
@@ -222,6 +224,102 @@ Powered by Railway + Shopify + SendGrid
         logger.error(f"❌ Error enviando email con SendGrid: {e}")
         return False
     
+def send_discord_alert(alert_type: str, products_list: list) -> bool:
+    """
+    Envía alerta a Discord usando webhooks.
+    
+    Args:
+        alert_type: Tipo de alerta (ej: "Stock Bajo Detectado")
+        products_list: Lista de productos con alerta
+    
+    Returns:
+        True si envío exitoso, False si falla
+    """
+    if not DISCORD_WEBHOOK_URL:
+        logger.warning("⚠️ Discord webhook no configurado, saltando alerta")
+        return False
+    
+    try:
+        # Determinar color según urgencia
+        stock_min = min([p.get('stock', 999) for p in products_list])
+        if stock_min <= 3:
+            color = 0xFF0000  # Rojo (crítico)
+            emoji = "🔴"
+        elif stock_min <= 7:
+            color = 0xFF6600  # Naranja (advertencia)
+            emoji = "🟠"
+        else:
+            color = 0xFFCC00  # Amarillo (atención)
+            emoji = "🟡"
+        
+        # Crear lista de productos
+        productos_texto = ""
+        for i, product in enumerate(products_list[:5], 1):  # Max 5
+            productos_texto += f"\n{i}. **{product.get('name', 'Sin nombre')}**"
+            if 'stock' in product:
+                productos_texto += f"\n   📦 Stock: **{product['stock']} unidades**"
+            if 'sku' in product:
+                productos_texto += f"\n   🏷️ SKU: {product['sku']}"
+            if 'price' in product:
+                productos_texto += f"\n   💰 Precio: ${product['price']}"
+            productos_texto += "\n"
+        
+        if len(products_list) > 5:
+            productos_texto += f"\n... y {len(products_list) - 5} productos más"
+        
+        # Crear embed de Discord
+        embed = {
+            "title": f"{emoji} {alert_type}",
+            "description": f"Se detectaron **{len(products_list)} productos** con alertas",
+            "color": color,
+            "fields": [
+                {
+                    "name": "📋 Productos Afectados",
+                    "value": productos_texto,
+                    "inline": False
+                },
+                {
+                    "name": "🏪 Tienda",
+                    "value": "connie-dev-studio.myshopify.com",
+                    "inline": True
+                },
+                {
+                    "name": "⏰ Timestamp",
+                    "value": f"<t:{int(time.time())}:R>",
+                    "inline": True
+                }
+            ],
+            "footer": {
+                "text": "Sistema de Alertas Automáticas • Powered by Railway"
+            }
+        }
+        
+        # Payload de Discord
+        payload = {
+            "username": "Shopify Alert Bot",
+            "avatar_url": "https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg",
+            "embeds": [embed]
+        }
+        
+        # Enviar a Discord
+        import requests
+        response = requests.post(
+            DISCORD_WEBHOOK_URL,
+            json=payload,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        if response.status_code == 204:
+            logger.info(f"✅ Discord alert enviada: {alert_type}")
+            return True
+        else:
+            logger.error(f"❌ Discord error: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Error enviando Discord alert: {e}")
+        return False    
+    
 def _save_alert(df: pd.DataFrame, alert_type: str, message: str) -> str:
     """
     Helper para guardar alertas de manera DRY.
@@ -285,6 +383,12 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None) -> dict:
         # ✅ NUEVO: Enviar email de alerta
         send_email_alert(
             f"🚨 Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
+            products[:10]
+        )
+
+        # ✅ NUEVO: Enviar Discord alert
+        send_discord_alert(
+            f"Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
             products[:10]
         )
 
