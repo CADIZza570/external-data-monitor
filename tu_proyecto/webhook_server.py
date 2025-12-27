@@ -44,9 +44,11 @@ from config_shared import (
     LOG_DIR,
     LOG_FILE,
     EMAIL_SENDER,
-    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
     validate_config
-)    
+)
+
+# Configurar SendGrid API Key
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 
 # Importar funciones de base de datos
 from database import save_webhook, get_webhooks, get_webhook_count
