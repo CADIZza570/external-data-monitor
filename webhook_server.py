@@ -396,7 +396,7 @@ def process_new_order(order_data: dict) -> bool:
         # Extraer información clave
         order_number = order_data.get('order_number', 'N/A')
         order_id = order_data.get('id', 'N/A')
-        customer = order_data.get('customer', {})
+        customer = order_data.get('customer') or {}
         customer_name = f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
         customer_email = customer.get('email', 'No email')
         
@@ -417,7 +417,7 @@ def process_new_order(order_data: dict) -> bool:
             products_summary.append(product_info)
         
         # Dirección de envío
-        shipping = order_data.get('shipping_address', {})
+        shipping = order_data.get('shipping_address') or {}
         shipping_address = f"{shipping.get('address1', '')}, {shipping.get('city', '')}, {shipping.get('province', '')} {shipping.get('zip', '')}"
         
         logger.info(f"🛒 Nueva orden recibida: #{order_number} - {customer_name} - ${total_price}")
