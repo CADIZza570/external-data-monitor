@@ -44,7 +44,7 @@ from config_shared import (
     LOG_DIR,
     LOG_FILE,
     EMAIL_SENDER,
-    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY"),
+    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
     validate_config
 )    
 
