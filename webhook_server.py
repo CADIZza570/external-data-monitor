@@ -1112,15 +1112,15 @@ def webhook_shopify():
             }), 400
         
         elif topic == 'orders/create':
-        logger.info(f"🛒 Procesando nueva orden")
-        
-        # Procesar orden
-        process_new_order(payload)
-        
-        return jsonify({
-            "status": "success",
-            "message": "Order processed successfully",
-            "order_number": payload.get('order_number', 'N/A')
+            logger.info(f"🛒 Procesando nueva orden")
+            
+            # Procesar orden
+            process_new_order(payload)
+            
+            return jsonify({
+                "status": "success",
+                "message": "Order processed successfully",
+                "order_number": payload.get('order_number', 'N/A')
         }), 200
     
         # Convertir a DataFrame
