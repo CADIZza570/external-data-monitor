@@ -620,8 +620,9 @@ def save_order_to_sheets(order_number: str, customer_name: str, customer_email: 
         creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
         client = gspread.authorize(creds)
         
-        # Abrir sheet
-        sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
+        # Abrir la segunda hoja (Órdenes Nuevas)
+        spreadsheet = client.open_by_key(GOOGLE_SHEET_ID)
+        sheet = spreadsheet.worksheet("Órdenes Nuevas")
         
         # Preparar datos
         from datetime import datetime
