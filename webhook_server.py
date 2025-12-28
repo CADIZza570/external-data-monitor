@@ -296,11 +296,14 @@ Powered by Railway + Shopify + SendGrid
 def send_discord_alert(alert_type: str, products_list: list, discord_url: str = None,
                       shop_name: str = None) -> bool:
     """
-    Envía alerta a Discord usando webhooks.
+    Envía alerta a Discord usando webhooks con formato profesional mejorado.
+    ✅ MEJORA v2.7: Formato premium con más contexto y urgencia visual
     
     Args:
         alert_type: Tipo de alerta (ej: "Stock Bajo Detectado")
         products_list: Lista de productos con alerta
+        discord_url: URL del webhook de Discord
+        shop_name: Nombre de la tienda
     
     Returns:
         True si envío exitoso, False si falla
@@ -311,37 +314,89 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
         return False
     
     try:
-        # Determinar color según urgencia
+        # Determinar color y nivel de urgencia según stock
         stock_min = min([p.get('stock', 999) for p in products_list])
-        if stock_min <= 3:
+        
+        if stock_min == 0:
+            color = 0x8B0000  # Rojo oscuro (AGOTADO)
+            emoji = "🔴"
+            urgency = "CRÍTICO - AGOTADO"
+            urgency_emoji = "🚨"
+        elif stock_min <= 3:
             color = 0xFF0000  # Rojo (crítico)
             emoji = "🔴"
+            urgency = "CRÍTICO"
+            urgency_emoji = "⚠️"
         elif stock_min <= 7:
             color = 0xFF6600  # Naranja (advertencia)
             emoji = "🟠"
+            urgency = "ADVERTENCIA"
+            urgency_emoji = "⚡"
         else:
             color = 0xFFCC00  # Amarillo (atención)
             emoji = "🟡"
+            urgency = "ATENCIÓN"
+            urgency_emoji = "💡"
         
-        # Crear lista de productos
+        # Crear descripción principal mejorada
+        description = f"━━━━━━━━━━━━━━━━━━━━━\n"
+        description += f"{urgency_emoji} **Nivel de Urgencia: {urgency}**\n"
+        description += f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        description += f"Se detectaron **{len(products_list)} producto(s)** con stock bajo\n"
+        
+        # Crear lista de productos con formato mejorado
         productos_texto = ""
         for i, product in enumerate(products_list[:5], 1):  # Max 5
-            productos_texto += f"\n{i}. **{product.get('name', 'Sin nombre')}**"
-            if 'stock' in product:
-                productos_texto += f"\n   📦 Stock: **{product['stock']} unidades**"
-            if 'sku' in product:
-                productos_texto += f"\n   🏷️ SKU: {product['sku']}"
-            if 'price' in product:
-                productos_texto += f"\n   💰 Precio: ${product['price']}"
-            productos_texto += "\n"
+            name = product.get('name', 'Sin nombre')
+            stock = product.get('stock', 0)
+            
+            # Emoji según stock individual
+            if stock == 0:
+                stock_emoji = "❌"
+                stock_text = "**AGOTADO**"
+            elif stock <= 3:
+                stock_emoji = "🔴"
+                stock_text = f"**{stock} unidades** (crítico)"
+            elif stock <= 7:
+                stock_emoji = "🟠"
+                stock_text = f"**{stock} unidades** (bajo)"
+            else:
+                stock_emoji = "🟡"
+                stock_text = f"**{stock} unidades**"
+            
+            productos_texto += f"\n{stock_emoji} **Producto #{i}: {name}**\n"
+            productos_texto += f"├─ 📦 Stock: {stock_text}\n"
+            
+            if 'sku' in product and product['sku']:
+                productos_texto += f"├─ 🏷️ SKU: `{product['sku']}`\n"
+            
+            if 'price' in product and product['price']:
+                productos_texto += f"├─ 💰 Precio: **${product['price']}**\n"
+            
+            # Calcular valor en riesgo
+            if 'price' in product and 'stock' in product:
+                try:
+                    price_float = float(product['price'])
+                    stock_int = int(product['stock'])
+                    value_at_risk = price_float * stock_int
+                    productos_texto += f"└─ 💸 Inventario restante: **${value_at_risk:.2f}**\n"
+                except (ValueError, TypeError):
+                    productos_texto += f"└─ ⚠️ Requiere reabastecimiento\n"
+            else:
+                productos_texto += f"└─ ⚠️ Requiere reabastecimiento\n"
         
         if len(products_list) > 5:
-            productos_texto += f"\n... y {len(products_list) - 5} productos más"
+            productos_texto += f"\n\n➕ **+{len(products_list) - 5} producto(s) adicional(es)**"
         
-        # Crear embed de Discord
+        # Timestamp formateado
+        from datetime import datetime
+        now = datetime.now()
+        timestamp_str = now.strftime("%d/%m/%Y a las %H:%M")
+        
+        # Crear embed de Discord mejorado
         embed = {
             "title": f"{emoji} {alert_type}",
-            "description": f"Se detectaron **{len(products_list)} productos** con alertas",
+            "description": description,
             "color": color,
             "fields": [
                 {
@@ -355,24 +410,25 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
                     "inline": True
                 },
                 {
-                    "name": "⏰ Timestamp",
-                    "value": f"<t:{int(time.time())}:R>",
+                    "name": "⏰ Detectado",
+                    "value": timestamp_str,
                     "inline": True
                 }
             ],
             "footer": {
-                "text": "Sistema de Alertas Automáticas • Powered by Railway"
-            }
+                "text": f"Sistema de Alertas Inteligente • Anti-Spam Activado • Powered by Railway",
+                "icon_url": "https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg"
+            },
+            "timestamp": now.isoformat()
         }
         
         # Payload de Discord
         payload = {
-            "username": "Shopify Alert Bot",
+            "username": "🤖 Shopify Alert Bot",
             "avatar_url": "https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg",
             "embeds": [embed]
         }
         
-        # Enviar a Discord
         # Enviar a Discord
         import requests
         response = requests.post(
@@ -390,7 +446,7 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
             
     except Exception as e:
         logger.error(f"❌ Error enviando Discord alert: {e}")
-        return False    
+        return False
 
 def send_to_google_sheets(alert_type: str, products_list: list, sheet_id: str = None,
                          shop_name: str = None) -> bool:
