@@ -615,11 +615,11 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
         logger.error(f"❌ Error procesando orden: {e}")
         return False
     
-def send_discord_order_alert(order_number, customer_name, customer_email, 
-                             customer_phone: str,
-                             products: list, total: str, currency: str, address: str,
-                             customer_note: str = "", extra_notes: list = None,
-                             discord_url: str = None, shop_name: str = None) -> bool:
+def send_discord_order_alert(
+        order_number: str, customer_name: str, customer_email:str , customer_phone: str,
+        products: list, total: str, currency: str, address: str,
+        customer_note: str = "", extra_notes: list = None,
+        discord_url: str = None, shop_name: str = None) -> bool:
     """
     Envía alerta de nueva orden a Discord con formato mejorado.
     ✅ MEJORA v2.8: Incluye notas del cliente y formato premium
@@ -778,11 +778,11 @@ def send_discord_order_alert(order_number, customer_name, customer_email,
         logger.error(f"❌ Error enviando Discord order alert: {e}")
         return False
 
-def send_email_order_alert(order_number, customer_name, customer_email,
-                           customer_phone, 
-                           products: list, total: str, currency: str, address: str,
-                           customer_note: str = "", extra_notes: list = None,
-                           email_to: str = None, shop_name: str = None) -> bool:
+def send_email_order_alert(
+        order_number: str, customer_name: str, customer_email:str, customer_phone:str, 
+        products: list, total: str, currency: str, address: str,
+        customer_note: str = "", extra_notes: list = None,
+        email_to: str = None, shop_name: str = None) -> bool:
     """
     Envía email de alerta de nueva orden.
     ✅ MEJORA v2.8: Incluye notas del cliente
@@ -871,11 +871,11 @@ Powered by Railway + Shopify
         logger.error(f"❌ Error enviando email de orden: {e}")
         return False
     
-def save_order_to_sheets(order_number, customer_name, customer_email,
-                        customer_phone,
-                        products: list, total: str, currency: str, address: str,
-                        customer_note: str = "",
-                        sheet_id: str = None, shop_name: str = None) -> bool:
+def save_order_to_sheets(
+        order_number: str, customer_name:str, customer_email:str, customer_phone:str,
+        products: list, total: str, currency: str, address: str,
+        customer_note: str = "",
+        sheet_id: str = None, shop_name: str = None) -> bool:
     """
     Guarda orden en Google Sheets.
     ✅ MEJORA v2.8: Incluye notas del cliente
