@@ -587,7 +587,7 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
         
         # Enviar a Discord (ahora con notas)
         send_discord_order_alert(
-            order_number, customer_name, customer_email, 
+            order_number, customer_name, customer_email, customer_phone,
             products_summary, total_price, currency, shipping_address,
             customer_note, extra_notes,  # ← NUEVO: pasar notas
             discord_url=discord_url, shop_name=shop_name
@@ -595,7 +595,7 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
 
         # Enviar Email (ahora con notas)
         send_email_order_alert(
-            order_number, customer_name, customer_email,
+            order_number, customer_name, customer_email, customer_phone,
             products_summary, total_price, currency, shipping_address,
             customer_note, extra_notes,  # ← NUEVO: pasar notas
             email_to=email_to, shop_name=shop_name
@@ -603,7 +603,7 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
 
         # Guardar en Google Sheets (ahora con notas)
         save_order_to_sheets(
-            order_number, customer_name, customer_email,
+            order_number, customer_name, customer_email, customer_phone,
             products_summary, total_price, currency, shipping_address,
             customer_note,  # ← NUEVO: pasar nota
             sheet_id=sheet_id, shop_name=shop_name
