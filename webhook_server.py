@@ -817,13 +817,14 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
 
 
 def alert_no_sales(df: pd.DataFrame, days: int = None,
-                  email_to: str = None, discord_url: str = None,
-                  sheet_id: str = None) -> dict:    """
+                    email_to: str = None, discord_url: str = None,
+                    sheet_id: str = None) -> dict:   
+    """
     Detecta productos sin ventas recientes.
     ✅ Mejora v2.5: days_threshold evaluado en runtime
-    
+                    
     Returns:
-        dict con información de la alerta
+    dict con información de la alerta
     """
     # ✅ Mejora: Evaluar default en runtime
     if days_threshold is None:
