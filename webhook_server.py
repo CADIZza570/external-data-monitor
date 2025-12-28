@@ -133,7 +133,7 @@ def get_client_config(shop_domain: str, hmac_header: str, request_data: bytes) -
             'discord': DISCORD_WEBHOOK_URL,
             'sheet_id': GOOGLE_SHEET_ID
         },
-        'lachaparrita-shop.myshopify.com': {
+        'chaparrita-boots.myshopify.com': {
             'name': 'La Chaparrita',
             'webhook_secret': SHOPIFY_WEBHOOK_SECRET_CHAPARRITA,
             'email': EMAIL_SENDER_CHAPARRITA or EMAIL_SENDER,
