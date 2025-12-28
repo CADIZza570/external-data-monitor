@@ -128,6 +128,7 @@ def get_client_config(shop_domain: str, hmac_header: str, request_data: bytes) -
     client_configs = {
         'connie-dev-studio.myshopify.com': {
             'name': 'DEV',
+            'shop_name': 'Development Store',  # ← NUEVO
             'webhook_secret': SHOPIFY_WEBHOOK_SECRET_DEV,
             'email': EMAIL_SENDER,
             'discord': DISCORD_WEBHOOK_URL,
@@ -135,6 +136,7 @@ def get_client_config(shop_domain: str, hmac_header: str, request_data: bytes) -
         },
         'chaparrita-boots.myshopify.com': {
             'name': 'La Chaparrita',
+            'shop_name': 'La Chaparrita',  # ← NUEVO
             'webhook_secret': SHOPIFY_WEBHOOK_SECRET_CHAPARRITA,
             'email': EMAIL_SENDER_CHAPARRITA or EMAIL_SENDER,
             'discord': DISCORD_WEBHOOK_URL_CHAPARRITA or DISCORD_WEBHOOK_URL,
@@ -218,7 +220,8 @@ def is_simulation_mode(request) -> bool:
 # =========================
 # 📊 FUNCIONES DE DIAGNÓSTICO
 # =========================
-def send_email_alert(subject: str, products_list: list, email_to: str = None) -> bool:
+def send_email_alert(subject: str, products_list: list, email_to: str = None, 
+                    shop_name: str = None) -> bool:
     """
     Envía email de alerta usando SendGrid API.
     
@@ -237,8 +240,9 @@ def send_email_alert(subject: str, products_list: list, email_to: str = None) ->
     
     try:
         # Crear body del email
+        shop_display = shop_name or "Shopify Webhook System"
         body = f"""
-🚨 ALERTA DE INVENTARIO - Shopify Webhook System
+🚨 ALERTA DE INVENTARIO - {shop_display}
 
 Se ha detectado la siguiente alerta en tu tienda:
 
@@ -287,7 +291,8 @@ Powered by Railway + Shopify + SendGrid
         logger.error(f"❌ Error enviando email con SendGrid: {e}")
         return False
     
-def send_discord_alert(alert_type: str, products_list: list, discord_url: str = None) -> bool:
+def send_discord_alert(alert_type: str, products_list: list, discord_url: str = None,
+                      shop_name: str = None) -> bool:
     """
     Envía alerta a Discord usando webhooks.
     
@@ -344,7 +349,7 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
                 },
                 {
                     "name": "🏪 Tienda",
-                    "value": "connie-dev-studio.myshopify.com",
+                    "value": shop_name or "Unknown Store",
                     "inline": True
                 },
                 {
@@ -385,7 +390,8 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
         logger.error(f"❌ Error enviando Discord alert: {e}")
         return False    
 
-def send_to_google_sheets(alert_type: str, products_list: list, sheet_id: str = None) -> bool:
+def send_to_google_sheets(alert_type: str, products_list: list, sheet_id: str = None,
+                         shop_name: str = None) -> bool:
     """
     Envía datos a Google Sheets.
     
@@ -431,7 +437,7 @@ def send_to_google_sheets(alert_type: str, products_list: list, sheet_id: str = 
                 product.get('stock', 0),
                 product.get('price', 'N/A'),
                 alert_type,
-                'connie-dev-studio.myshopify.com'
+                shop_name or 'Unknown Store'
             ]
             sheet.append_row(row)
         
@@ -485,17 +491,17 @@ def process_new_order(order_data: dict) -> bool:
         # Enviar a Discord
         send_discord_order_alert(order_number, customer_name, customer_email, 
                                 products_summary, total_price, currency, shipping_address,
-                                discord_url=current_discord)
+                                discord_url=current_discord, shop_name=current_shop_name)
 
         # Enviar Email
         send_email_order_alert(order_number, customer_name, customer_email,
-                              products_summary, total_price, currency, shipping_address,
-                              email_to=current_email)
+                                products_summary, total_price, currency, shipping_address,
+                                email_to=current_email, shop_name=current_shop_name)
 
         # Guardar en Google Sheets
         save_order_to_sheets(order_number, customer_name, customer_email,
                             products_summary, total_price, currency, shipping_address,
-                            sheet_id=current_sheet_id)
+                            sheet_id=current_sheet_id, shop_name=current_shop_name)
         
         return True
         
@@ -505,7 +511,7 @@ def process_new_order(order_data: dict) -> bool:
 
 def send_discord_order_alert(order_number: str, customer_name: str, customer_email: str,
                              products: list, total: str, currency: str, address: str,
-                             discord_url: str = None) -> bool:
+                             discord_url: str = None, shop_name: str = None) -> bool:
     """
     Envía alerta de nueva orden a Discord.
     """
@@ -544,6 +550,11 @@ def send_discord_order_alert(order_number: str, customer_name: str, customer_ema
                 {
                     "name": "💰 Total",
                     "value": f"**${total} {currency}**",
+                    "inline": True
+                },
+                {
+                    "name": "🏪 Tienda",  # ← AÑADE ESTE CAMPO COMPLETO
+                    "value": shop_name or "Unknown Store",
                     "inline": True
                 },
                 {
@@ -590,7 +601,7 @@ def send_discord_order_alert(order_number: str, customer_name: str, customer_ema
 
 def send_email_order_alert(order_number: str, customer_name: str, customer_email: str,
                           products: list, total: str, currency: str, address: str,
-                          email_to: str = None) -> bool:
+                          email_to: str = None, shop_name: str = None) -> bool:
     """
     Envía email de alerta de nueva orden.
     """
@@ -666,7 +677,7 @@ Powered by Railway + Shopify
 
 def save_order_to_sheets(order_number: str, customer_name: str, customer_email: str,
                         products: list, total: str, currency: str, address: str,
-                        sheet_id: str = None) -> bool:
+                        sheet_id: str = None, shop_name: str = None) -> bool:
     """
     Guarda orden en Google Sheets.
     """
@@ -710,9 +721,9 @@ def save_order_to_sheets(order_number: str, customer_name: str, customer_email: 
             productos_resumen,
             f"${total} {currency}",
             "Nueva Orden",
-            'connie-dev-studio.myshopify.com'
+            shop_name or 'Unknown Store'
         ]
-        
+                
         sheet.append_row(row)
         
         logger.info(f"✅ Orden guardada en Sheets: #{order_number}")
@@ -755,9 +766,9 @@ def _save_alert(df: pd.DataFrame, alert_type: str, message: str) -> str:
     return ""
 
 
-def alert_low_stock(df: pd.DataFrame, threshold: int = None, 
-                   email_to: str = None, discord_url: str = None, 
-                   sheet_id: str = None) -> dict:
+def alert_low_stock(df: pd.DataFrame, threshold: int = None,
+                   email_to: str = None, discord_url: str = None,
+                   sheet_id: str = None, shop_name: str = None) -> dict:
     """
     Detecta productos con stock bajo.
     ✅ Mejora v2.5: threshold evaluado en runtime, no al importar
@@ -788,21 +799,24 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
         send_email_alert(
             f"🚨 Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
             products[:10],
-            email_to=email_to
+            email_to=email_to,
+            shop_name=shop_name
         )
 
         # ✅ NUEVO: Enviar Discord alert
         send_discord_alert(
             f"Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
             products[:10],
-            discord_url=discord_url
+            discord_url=discord_url,
+            shop_name=shop_name
         )
 
         # ✅ NUEVO: Exportar a Google Sheets
         send_to_google_sheets(
             f"Stock Bajo <= {threshold}",
             products[:10],
-            sheet_id=sheet_id
+            sheet_id=sheet_id,
+            shop_name=shop_name
         )
 
         return {
@@ -817,8 +831,8 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
 
 
 def alert_no_sales(df: pd.DataFrame, days: int = None,
-                    email_to: str = None, discord_url: str = None,
-                    sheet_id: str = None) -> dict:   
+                  email_to: str = None, discord_url: str = None,
+                  sheet_id: str = None, shop_name: str = None) -> dict: 
     """
     Detecta productos sin ventas recientes.
     ✅ Mejora v2.5: days_threshold evaluado en runtime
@@ -859,7 +873,7 @@ def alert_no_sales(df: pd.DataFrame, days: int = None,
 
 def alert_missing_data(df: pd.DataFrame,
                       email_to: str = None, discord_url: str = None,
-                      sheet_id: str = None) -> dict:
+                      sheet_id: str = None, shop_name: str = None) -> dict:
     """
     Detecta filas con datos críticos faltantes.
     
@@ -1173,6 +1187,7 @@ def webhook_shopify():
             current_email = client_config['email']
             current_discord = client_config['discord']
             current_sheet_id = client_config['sheet_id']
+            current_shop_name = client_config['shop_name']  # ← NUEVO
             
             logger.info(f"📥 Webhook de {client_config['name']}")
         else:
@@ -1180,6 +1195,7 @@ def webhook_shopify():
             current_email = EMAIL_SENDER
             current_discord = DISCORD_WEBHOOK_URL
             current_sheet_id = GOOGLE_SHEET_ID
+            current_shop_name = "Development Store"  # ← NUEVO
         
         # Obtener topic (tipo de evento)
         topic = request.headers.get('X-Shopify-Topic', 'simulation/test')
@@ -1302,13 +1318,16 @@ def webhook_shopify():
         alerts = {
             "low_stock": alert_low_stock(df, email_to=current_email, 
                                         discord_url=current_discord, 
-                                        sheet_id=current_sheet_id),
+                                        sheet_id=current_sheet_id,
+                                        shop_name=current_shop_name),
             "no_sales": alert_no_sales(df, email_to=current_email,
                                         discord_url=current_discord,
-                                        sheet_id=current_sheet_id),
+                                        sheet_id=current_sheet_id,
+                                        shop_name=current_shop_name),
             "missing_data": alert_missing_data(df, email_to=current_email,
                                                 discord_url=current_discord,
-                                                sheet_id=current_sheet_id)
+                                                sheet_id=current_sheet_id,
+                                                shop_name=current_shop_name)
         }
         
         # Procesar datos
