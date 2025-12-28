@@ -755,7 +755,9 @@ def _save_alert(df: pd.DataFrame, alert_type: str, message: str) -> str:
     return ""
 
 
-def alert_low_stock(df: pd.DataFrame, threshold: int = None) -> dict:
+def alert_low_stock(df: pd.DataFrame, threshold: int = None, 
+                   email_to: str = None, discord_url: str = None, 
+                   sheet_id: str = None) -> dict:
     """
     Detecta productos con stock bajo.
     ✅ Mejora v2.5: threshold evaluado en runtime, no al importar
@@ -786,21 +788,21 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None) -> dict:
         send_email_alert(
             f"🚨 Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
             products[:10],
-            email_to=current_email
+            email_to=email_to
         )
 
         # ✅ NUEVO: Enviar Discord alert
         send_discord_alert(
             f"Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
             products[:10],
-            discord_url=current_discord
+            discord_url=discord_url
         )
 
         # ✅ NUEVO: Exportar a Google Sheets
         send_to_google_sheets(
             f"Stock Bajo <= {threshold}",
             products[:10],
-            sheet_id=current_sheet_id
+            sheet_id=sheet_id
         )
 
         return {
@@ -814,8 +816,9 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None) -> dict:
     return {"triggered": False, "count": 0, "products": []}
 
 
-def alert_no_sales(df: pd.DataFrame, days_threshold: int = None) -> dict:
-    """
+def alert_no_sales(df: pd.DataFrame, days: int = None,
+                  email_to: str = None, discord_url: str = None,
+                  sheet_id: str = None) -> dict:    """
     Detecta productos sin ventas recientes.
     ✅ Mejora v2.5: days_threshold evaluado en runtime
     
@@ -853,7 +856,9 @@ def alert_no_sales(df: pd.DataFrame, days_threshold: int = None) -> dict:
     return {"triggered": False, "count": 0}
 
 
-def alert_missing_data(df: pd.DataFrame) -> dict:
+def alert_missing_data(df: pd.DataFrame,
+                      email_to: str = None, discord_url: str = None,
+                      sheet_id: str = None) -> dict:
     """
     Detecta filas con datos críticos faltantes.
     
@@ -1294,9 +1299,15 @@ def webhook_shopify():
         
         # Ejecutar diagnósticos
         alerts = {
-            "low_stock": alert_low_stock(df),
-            "no_sales": alert_no_sales(df),
-            "missing_data": alert_missing_data(df)
+            "low_stock": alert_low_stock(df, email_to=current_email, 
+                                        discord_url=current_discord, 
+                                        sheet_id=current_sheet_id),
+            "no_sales": alert_no_sales(df, email_to=current_email,
+                                        discord_url=current_discord,
+                                        sheet_id=current_sheet_id),
+            "missing_data": alert_missing_data(df, email_to=current_email,
+                                                discord_url=current_discord,
+                                                sheet_id=current_sheet_id)
         }
         
         # Procesar datos
