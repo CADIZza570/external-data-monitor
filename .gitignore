@@ -55,3 +55,19 @@ Thumbs.db
 *.tmp
 temp/
 tmp/archivo_critico
+
+# Testing y desarrollo
+analyze_leads.py
+automation_runner.py
+backups/
+create_structure.sh
+generate_test_*.py
+reorganize_code.py
+run_api_data_fetcher.py
+
+# Datos personales
+leads_web.xlsx
+*.xlsx
+
+# Carpeta duplicada (no usar)
+tu_proyecto/
