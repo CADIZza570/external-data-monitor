@@ -71,6 +71,8 @@ EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 
 # Importar funciones de base de datos
 from database import save_webhook, get_webhooks, get_webhook_count
+# ✅ NUEVO: Sistema anti-duplicados
+from alert_deduplication import get_deduplicator, ALERT_TTL_CONFIG
 
 # =========================
 # ⚙️ CONFIGURACIÓN GLOBAL
@@ -766,18 +768,17 @@ def _save_alert(df: pd.DataFrame, alert_type: str, message: str) -> str:
     logger.error(f"❌ No se pudo guardar {alert_type} después de {max_retries} intentos")
     return ""
 
-
 def alert_low_stock(df: pd.DataFrame, threshold: int = None,
                    email_to: str = None, discord_url: str = None,
                    sheet_id: str = None, shop_name: str = None) -> dict:
     """
     Detecta productos con stock bajo.
-    ✅ Mejora v2.5: threshold evaluado en runtime, no al importar
+    ✅ MEJORA v2.6: Sistema anti-duplicados integrado
     
     Returns:
         dict con información de la alerta
     """
-    # ✅ Mejora: Evaluar default en runtime
+    # Evaluar threshold en runtime
     if threshold is None:
         threshold = LOW_STOCK_THRESHOLD
     
@@ -787,7 +788,7 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
     low_stock = df[df["stock"] <= threshold]
     
     if not low_stock.empty:
-        # ✅ Mejora v2.5: Usa helper DRY + retry logic
+        # Guardar CSV (como antes)
         path = _save_alert(
             low_stock, 
             "low_stock", 
@@ -796,40 +797,76 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
         
         products = low_stock[["product_id", "name", "stock"]].to_dict('records')
         
-        # ✅ NUEVO: Enviar email de alerta
-        send_email_alert(
-            f"🚨 Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
-            products[:10],
-            email_to=email_to,
-            shop_name=shop_name
-        )
-
-        # ✅ NUEVO: Enviar Discord alert
-        send_discord_alert(
-            f"Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
-            products[:10],
-            discord_url=discord_url,
-            shop_name=shop_name
-        )
-
-        # ✅ NUEVO: Exportar a Google Sheets
-        send_to_google_sheets(
-            f"Stock Bajo <= {threshold}",
-            products[:10],
-            sheet_id=sheet_id,
-            shop_name=shop_name
-        )
-
+        # ✅ NUEVO: Sistema de deduplicación
+        dedup = get_deduplicator()
+        alerts_sent = 0
+        alerts_skipped = 0
+        
+        # Procesar cada producto individualmente
+        for product in products[:10]:  # Máximo 10 productos
+            product_id = product.get('product_id')
+            product_name = product.get('name', 'Sin nombre')
+            product_stock = product.get('stock', 0)
+            
+            # Verificar si ya se alertó en las últimas 24h
+            if dedup.should_send_alert(
+                "low_stock", 
+                ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
+                product_id=product_id,
+                shop=shop_name
+            ):
+                # ✅ SÍ ENVIAR - No es duplicado
+                logger.info(f"📧 Enviando alerta: {product_name} (Stock: {product_stock})")
+                
+                # Email
+                send_email_alert(
+                    f"🚨 Stock Bajo: {product_name} ({product_stock} unidades)",
+                    [product],
+                    email_to=email_to,
+                    shop_name=shop_name
+                )
+                
+                # Discord
+                send_discord_alert(
+                    f"Stock Bajo: {product_name} ({product_stock} unidades)",
+                    [product],
+                    discord_url=discord_url,
+                    shop_name=shop_name
+                )
+                
+                # Google Sheets
+                send_to_google_sheets(
+                    f"Stock Bajo <= {threshold}",
+                    [product],
+                    sheet_id=sheet_id,
+                    shop_name=shop_name
+                )
+                
+                # ✅ MARCAR como enviado (para que no se repita)
+                dedup.mark_sent(
+                    "low_stock",
+                    ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
+                    product_id=product_id,
+                    shop=shop_name
+                )
+                
+                alerts_sent += 1
+            else:
+                # ⏭️ NO ENVIAR - Es duplicado
+                logger.info(f"⏭️  Alerta ignorada (duplicado): {product_name}")
+                alerts_skipped += 1
+        
         return {
-            "triggered": True,
+            "triggered": alerts_sent > 0,
             "count": len(low_stock),
+            "alerts_sent": alerts_sent,
+            "alerts_deduplicated": alerts_skipped,
             "threshold": threshold,
             "file": path,
-            "products": products[:10]  # Máximo 10 para no saturar respuesta
+            "products": products[:10]
         }
     
     return {"triggered": False, "count": 0, "products": []}
-
 
 def alert_no_sales(df: pd.DataFrame, days: int = None,
                   email_to: str = None, discord_url: str = None,
@@ -1634,10 +1671,109 @@ def webhook_amazon():
         "coming_soon": True
     }), 200
 
+# ============================================================
+# 📊 ENDPOINTS DE DEDUPLICACIÓN (NUEVOS)
+# ============================================================
 
-# =========================
-# 🚀 ENTRY POINT
-# =========================
+@app.route('/api/deduplication/stats', methods=['GET'])
+def dedup_stats():
+    """
+    Estadísticas del sistema anti-duplicados.
+    
+    Ejemplo: GET /api/deduplication/stats
+    """
+    dedup = get_deduplicator()
+    stats = dedup.get_stats()
+    
+    return jsonify({
+        "status": "success",
+        "deduplication_system": {
+            "enabled": True,
+            "default_ttl_hours": 24,
+            "ttl_config": ALERT_TTL_CONFIG
+        },
+        "statistics": stats,
+        "timestamp": datetime.now().isoformat()
+    }), 200
+
+
+@app.route('/api/deduplication/reset', methods=['POST'])
+def dedup_reset():
+    """
+    Reset manual de una alerta específica.
+    
+    Body JSON:
+    {
+        "alert_type": "low_stock",
+        "product_id": 12345,
+        "shop": "chaparrita"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                "status": "error",
+                "message": "No JSON body provided"
+            }), 400
+        
+        alert_type = data.get("alert_type")
+        
+        if not alert_type:
+            return jsonify({
+                "status": "error",
+                "message": "alert_type is required"
+            }), 400
+        
+        # Extraer identificadores
+        identifiers = {k: v for k, v in data.items() if k != "alert_type"}
+        
+        # Reset
+        dedup = get_deduplicator()
+        was_reset = dedup.reset_alert(alert_type, **identifiers)
+        
+        if was_reset:
+            return jsonify({
+                "status": "success",
+                "message": f"Alert {alert_type} reset successfully",
+                "identifiers": identifiers
+            }), 200
+        else:
+            return jsonify({
+                "status": "warning",
+                "message": "Alert not found in cache",
+                "identifiers": identifiers
+            }), 200
+            
+    except Exception as e:
+        logger.error(f"❌ Error resetting alert: {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": "Internal server error"
+        }), 500
+
+
+@app.route('/api/deduplication/cleanup', methods=['POST'])
+def dedup_cleanup():
+    """
+    Fuerza limpieza completa del cache.
+    Solo para testing/debugging.
+    
+    Ejemplo: POST /api/deduplication/cleanup
+    """
+    dedup = get_deduplicator()
+    count = dedup.force_cleanup()
+    
+    return jsonify({
+        "status": "success",
+        "message": f"Cache cleared: {count} alerts removed"
+    }), 200
+
+
+# ============================================================
+# 🚀 ENTRY POINT 
+# ============================================================
 
 if __name__ == "__main__":
     # ✅ RAILWAY FIX: Usar puerto de variable de entorno
