@@ -448,7 +448,8 @@ def send_to_google_sheets(alert_type: str, products_list: list, sheet_id: str = 
         logger.error(f"❌ Error escribiendo en Google Sheets: {e}")
         return False    
     
-def process_new_order(order_data: dict) -> bool:
+def process_new_order(order_data: dict, email_to: str = None, discord_url: str = None,
+                     sheet_id: str = None, shop_name: str = None) -> bool:
     """
     Procesa nueva orden y envía notificaciones.
     
@@ -491,17 +492,17 @@ def process_new_order(order_data: dict) -> bool:
         # Enviar a Discord
         send_discord_order_alert(order_number, customer_name, customer_email, 
                                 products_summary, total_price, currency, shipping_address,
-                                discord_url=current_discord, shop_name=current_shop_name)
+                                discord_url=discord_url, shop_name=shop_name)
 
         # Enviar Email
         send_email_order_alert(order_number, customer_name, customer_email,
                                 products_summary, total_price, currency, shipping_address,
-                                email_to=current_email, shop_name=current_shop_name)
+                                email_to=email_to, shop_name=shop_name)
 
         # Guardar en Google Sheets
         save_order_to_sheets(order_number, customer_name, customer_email,
                             products_summary, total_price, currency, shipping_address,
-                            sheet_id=current_sheet_id, shop_name=current_shop_name)
+                            sheet_id=sheet_id, shop_name=shop_name)
         
         return True
         
@@ -1225,8 +1226,8 @@ def webhook_shopify():
         elif topic == 'orders/create':
             logger.info(f"🛒 Procesando nueva orden")
             
-            # Procesar orden
-            process_new_order(payload)
+            # Procesar orden con configuración del cliente
+            process_new_order(payload, current_email, current_discord, current_sheet_id, current_shop_name)
             
             return jsonify({
                 "status": "success",
