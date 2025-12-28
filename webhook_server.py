@@ -510,6 +510,7 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
                      sheet_id: str = None, shop_name: str = None) -> bool:
     """
     Procesa nueva orden y envía notificaciones.
+    ✅ MEJORA v2.8: Incluye notas del cliente y dirección formateada
     
     Args:
         order_data: Datos de la orden desde Shopify
@@ -528,6 +529,19 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
         total_price = order_data.get('total_price', '0.00')
         currency = order_data.get('currency', 'USD')
         
+        # ✅ NUEVO: Extraer notas del cliente
+        customer_note = order_data.get('note', '').strip()  # Nota general de la orden
+        note_attributes = order_data.get('note_attributes', [])  # Custom fields
+        
+        # Formatear notas adicionales (custom fields del checkout)
+        extra_notes = []
+        if note_attributes:
+            for attr in note_attributes:
+                name = attr.get('name', '')
+                value = attr.get('value', '')
+                if name and value:
+                    extra_notes.append(f"{name}: {value}")
+        
         # Productos en la orden
         line_items = order_data.get('line_items', [])
         products_summary = []
@@ -541,38 +555,78 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
             }
             products_summary.append(product_info)
         
-        # Dirección de envío
+        # ✅ MEJORADO: Dirección de envío formateada correctamente
         shipping = order_data.get('shipping_address') or {}
-        shipping_address = f"{shipping.get('address1', '')}, {shipping.get('city', '')}, {shipping.get('province', '')} {shipping.get('zip', '')}"
+        
+        # Construir dirección solo con campos que existen
+        address_parts = []
+        if shipping.get('address1'):
+            address_parts.append(shipping['address1'])
+        if shipping.get('address2'):
+            address_parts.append(shipping['address2'])
+        if shipping.get('city'):
+            address_parts.append(shipping['city'])
+        if shipping.get('province'):
+            address_parts.append(shipping['province'])
+        if shipping.get('zip'):
+            address_parts.append(shipping['zip'])
+        if shipping.get('country'):
+            address_parts.append(shipping['country'])
+        
+        shipping_address = ", ".join(address_parts) if address_parts else "Sin dirección de envío"
         
         logger.info(f"🛒 Nueva orden recibida: #{order_number} - {customer_name} - ${total_price}")
         
-        # Enviar a Discord
-        send_discord_order_alert(order_number, customer_name, customer_email, 
-                                products_summary, total_price, currency, shipping_address,
-                                discord_url=discord_url, shop_name=shop_name)
+        # Enviar a Discord (ahora con notas)
+        send_discord_order_alert(
+            order_number, customer_name, customer_email, 
+            products_summary, total_price, currency, shipping_address,
+            customer_note, extra_notes,  # ← NUEVO: pasar notas
+            discord_url=discord_url, shop_name=shop_name
+        )
 
-        # Enviar Email
-        send_email_order_alert(order_number, customer_name, customer_email,
-                                products_summary, total_price, currency, shipping_address,
-                                email_to=email_to, shop_name=shop_name)
+        # Enviar Email (ahora con notas)
+        send_email_order_alert(
+            order_number, customer_name, customer_email,
+            products_summary, total_price, currency, shipping_address,
+            customer_note, extra_notes,  # ← NUEVO: pasar notas
+            email_to=email_to, shop_name=shop_name
+        )
 
-        # Guardar en Google Sheets
-        save_order_to_sheets(order_number, customer_name, customer_email,
-                            products_summary, total_price, currency, shipping_address,
-                            sheet_id=sheet_id, shop_name=shop_name)
+        # Guardar en Google Sheets (ahora con notas)
+        save_order_to_sheets(
+            order_number, customer_name, customer_email,
+            products_summary, total_price, currency, shipping_address,
+            customer_note,  # ← NUEVO: pasar nota
+            sheet_id=sheet_id, shop_name=shop_name
+        )
         
         return True
         
     except Exception as e:
         logger.error(f"❌ Error procesando orden: {e}")
         return False
-
+    
 def send_discord_order_alert(order_number: str, customer_name: str, customer_email: str,
                              products: list, total: str, currency: str, address: str,
+                             customer_note: str = "", extra_notes: list = None,
                              discord_url: str = None, shop_name: str = None) -> bool:
     """
-    Envía alerta de nueva orden a Discord.
+    Envía alerta de nueva orden a Discord con formato mejorado.
+    ✅ MEJORA v2.8: Incluye notas del cliente y formato premium
+    
+    Args:
+        order_number: Número de orden
+        customer_name: Nombre del cliente
+        customer_email: Email del cliente
+        products: Lista de productos
+        total: Total de la orden
+        currency: Moneda
+        address: Dirección de envío
+        customer_note: Nota del cliente (nuevo)
+        extra_notes: Notas adicionales/custom fields (nuevo)
+        discord_url: URL del webhook
+        shop_name: Nombre de la tienda
     """
     webhook_url = discord_url or DISCORD_WEBHOOK_URL
     if not webhook_url:
@@ -580,61 +634,118 @@ def send_discord_order_alert(order_number: str, customer_name: str, customer_ema
         return False
     
     try:
-        # Crear lista de productos
+        # Descripción principal mejorada
+        description = f"━━━━━━━━━━━━━━━━━━━━━\n"
+        description += f"💰 **Nueva Venta Confirmada**\n"
+        description += f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        description += f"**Orden #{order_number}** • ${total} {currency}"
+        
+        # Crear lista de productos con formato mejorado
         productos_texto = ""
         for i, product in enumerate(products[:10], 1):
-            productos_texto += f"\n{i}. **{product.get('name', 'Sin nombre')}**"
-            productos_texto += f"\n   📦 Cantidad: **{product.get('quantity', 0)}**"
-            productos_texto += f"\n   💵 Precio: ${product.get('price', '0.00')}"
-            if product.get('sku') and product.get('sku') != 'N/A':
-                productos_texto += f"\n   🏷️ SKU: {product.get('sku')}"
-            productos_texto += "\n"
+            name = product.get('name', 'Sin nombre')
+            qty = product.get('quantity', 0)
+            price = product.get('price', '0.00')
+            sku = product.get('sku', 'N/A')
+            
+            productos_texto += f"\n**{i}. {name}**\n"
+            productos_texto += f"├─ 📦 Cantidad: **{qty} unidad(es)**\n"
+            productos_texto += f"├─ 💵 Precio: **${price}**\n"
+            
+            if sku and sku != 'N/A':
+                productos_texto += f"└─ 🏷️ SKU: `{sku}`\n"
+            else:
+                productos_texto += f"└─ ⚠️ Sin SKU\n"
         
-        # Crear embed de Discord
+        if len(products) > 10:
+            productos_texto += f"\n➕ **+{len(products) - 10} producto(s) más**"
+        
+        # ✅ NUEVO: Sección de notas del cliente
+        notas_texto = ""
+        has_notes = False
+        
+        if customer_note:
+            notas_texto += f"📝 **Nota del cliente:**\n"
+            notas_texto += f"_{customer_note}_\n"
+            has_notes = True
+        
+        if extra_notes:
+            if has_notes:
+                notas_texto += "\n"
+            notas_texto += f"📋 **Información adicional:**\n"
+            for note in extra_notes:
+                notas_texto += f"• {note}\n"
+            has_notes = True
+        
+        if not has_notes:
+            notas_texto = "_Sin notas del cliente_"
+        
+        # Timestamp
+        from datetime import datetime
+        now = datetime.now()
+        timestamp_str = now.strftime("%d/%m/%Y a las %H:%M")
+        
+        # Crear fields del embed
+        fields = [
+            {
+                "name": "👤 Cliente",
+                "value": f"**{customer_name}**\n📧 {customer_email}",
+                "inline": False
+            },
+            {
+                "name": "🛍️ Productos",
+                "value": productos_texto,
+                "inline": False
+            }
+        ]
+        
+        # ✅ NUEVO: Agregar campo de notas si existen
+        fields.append({
+            "name": "💬 Notas del Cliente",
+            "value": notas_texto,
+            "inline": False
+        })
+        
+        # Resto de fields
+        fields.extend([
+            {
+                "name": "💰 Total",
+                "value": f"**${total} {currency}**",
+                "inline": True
+            },
+            {
+                "name": "🏪 Tienda",
+                "value": shop_name or "Unknown Store",
+                "inline": True
+            },
+            {
+                "name": "🚚 Envío",
+                "value": address if address and address != "Sin dirección de envío" else "_Sin dirección registrada_",
+                "inline": False
+            },
+            {
+                "name": "⏰ Recibido",
+                "value": timestamp_str,
+                "inline": True
+            }
+        ])
+        
+        # Crear embed mejorado
         embed = {
             "title": f"🛒 Nueva Orden #{order_number}",
-            "description": f"**¡Tienes una nueva venta!**",
-            "color": 0x00FF00,  # Verde (éxito)
-            "fields": [
-                {
-                    "name": "👤 Cliente",
-                    "value": f"{customer_name}\n📧 {customer_email}",
-                    "inline": False
-                },
-                {
-                    "name": "🛍️ Productos",
-                    "value": productos_texto,
-                    "inline": False
-                },
-                {
-                    "name": "💰 Total",
-                    "value": f"**${total} {currency}**",
-                    "inline": True
-                },
-                {
-                    "name": "🏪 Tienda",  # ← AÑADE ESTE CAMPO COMPLETO
-                    "value": shop_name or "Unknown Store",
-                    "inline": True
-                },
-                {
-                    "name": "📍 Envío",
-                    "value": address if address.strip() else "Sin dirección",
-                    "inline": False
-                },
-                {
-                    "name": "⏰ Timestamp",
-                    "value": f"<t:{int(time.time())}:R>",
-                    "inline": True
-                }
-            ],
+            "description": description,
+            "color": 0x00D084,  # Verde Shopify
+            "fields": fields,
             "footer": {
-                "text": "Sistema de Alertas Automáticas • Shopify Orders"
-            }
+                "text": "Sistema de Alertas Inteligente • Shopify Orders • Anti-Spam Activado",
+                "icon_url": "https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg"
+            },
+            "timestamp": now.isoformat()
         }
         
         # Payload de Discord
         payload = {
-            "username": "Shopify Order Bot",
+            "username": "🤖 Shopify Order Bot",
             "avatar_url": "https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg",
             "embeds": [embed]
         }
@@ -651,7 +762,7 @@ def send_discord_order_alert(order_number: str, customer_name: str, customer_ema
             logger.info(f"✅ Discord order alert enviada: #{order_number}")
             return True
         else:
-            logger.error(f"❌ Discord error: {response.status_code}")
+            logger.error(f"❌ Discord error: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
@@ -660,9 +771,11 @@ def send_discord_order_alert(order_number: str, customer_name: str, customer_ema
 
 def send_email_order_alert(order_number: str, customer_name: str, customer_email: str,
                           products: list, total: str, currency: str, address: str,
+                          customer_note: str = "", extra_notes: list = None,
                           email_to: str = None, shop_name: str = None) -> bool:
     """
     Envía email de alerta de nueva orden.
+    ✅ MEJORA v2.8: Incluye notas del cliente
     """
     email_recipient = email_to or EMAIL_SENDER
     if not SENDGRID_API_KEY or not email_recipient:
@@ -680,9 +793,23 @@ def send_email_order_alert(order_number: str, customer_name: str, customer_email
                 productos_texto += f"\n   SKU: {product.get('sku')}"
             productos_texto += "\n"
         
+        # ✅ NUEVO: Sección de notas
+        notas_section = ""
+        if customer_note or extra_notes:
+            notas_section += "\n════════════════════════════════════════\n\n"
+            notas_section += "NOTAS DEL CLIENTE:\n"
+            
+            if customer_note:
+                notas_section += f"\n📝 Nota principal:\n{customer_note}\n"
+            
+            if extra_notes:
+                notas_section += "\n📋 Información adicional:\n"
+                for note in extra_notes:
+                    notas_section += f"• {note}\n"
+        
         # Crear body del email
         body = f"""
-🛒 NUEVA ORDEN RECIBIDA - Shopify
+🛒 NUEVA ORDEN RECIBIDA - {shop_name or 'Shopify'}
 
 Orden #{order_number}
 
@@ -700,18 +827,17 @@ PRODUCTOS:
 ════════════════════════════════════════
 
 TOTAL: ${total} {currency}
-
+{notas_section}
 ════════════════════════════════════════
 
 DIRECCIÓN DE ENVÍO:
-{address if address.strip() else 'Sin dirección registrada'}
+{address if address and address != 'Sin dirección de envío' else 'Sin dirección registrada'}
 
 ════════════════════════════════════════
 
-Ver orden completa en Shopify:
-https://connie-dev-studio.myshopify.com/admin/orders
+Ver orden completa en Shopify Admin
 
-Sistema de Alertas Automáticas
+Sistema de Alertas Inteligente
 Powered by Railway + Shopify
         """
         
@@ -733,17 +859,20 @@ Powered by Railway + Shopify
     except Exception as e:
         logger.error(f"❌ Error enviando email de orden: {e}")
         return False
-
+    
 def save_order_to_sheets(order_number: str, customer_name: str, customer_email: str,
                         products: list, total: str, currency: str, address: str,
+                        customer_note: str = "",
                         sheet_id: str = None, shop_name: str = None) -> bool:
     """
     Guarda orden en Google Sheets.
+    ✅ MEJORA v2.8: Incluye notas del cliente
     """
     target_sheet_id = sheet_id or GOOGLE_SHEET_ID
     if not GOOGLE_SHEETS_CREDENTIALS or not target_sheet_id:
         logger.warning("⚠️ Google Sheets no configurado")
         return False
+    
     try:
         # Parsear credenciales JSON
         creds_dict = json.loads(GOOGLE_SHEETS_CREDENTIALS)
@@ -771,7 +900,12 @@ def save_order_to_sheets(order_number: str, customer_name: str, customer_email: 
         if len(products) > 3:
             productos_resumen += f" +{len(products)-3} más"
         
-        # Añadir fila
+        # ✅ NUEVO: Incluir nota en resumen
+        nota_resumen = customer_note if customer_note else "Sin notas"
+        if len(nota_resumen) > 100:  # Truncar si es muy larga
+            nota_resumen = nota_resumen[:97] + "..."
+        
+        # Añadir fila con nota incluida
         row = [
             timestamp,
             f"Orden #{order_number}",
@@ -779,7 +913,7 @@ def save_order_to_sheets(order_number: str, customer_name: str, customer_email: 
             customer_email,
             productos_resumen,
             f"${total} {currency}",
-            "Nueva Orden",
+            nota_resumen,  # ✅ NUEVO: Columna de notas
             shop_name or 'Unknown Store'
         ]
                 
