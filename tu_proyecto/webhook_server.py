@@ -64,6 +64,11 @@ GOOGLE_SHEET_ID_CHAPARRITA = os.getenv("GOOGLE_SHEET_ID_CHAPARRITA")
 # Configurar Google Sheets (shared)
 GOOGLE_SHEETS_CREDENTIALS = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
 
+# Variables base (para compatibilidad y DEV)
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
+GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
+EMAIL_SENDER = os.getenv("EMAIL_SENDER")
+
 # Importar funciones de base de datos
 from database import save_webhook, get_webhooks, get_webhook_count
 
