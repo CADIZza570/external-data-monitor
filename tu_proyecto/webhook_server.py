@@ -52,11 +52,17 @@ from config_shared import (
 
 # Configurar SendGrid API Key
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-# Configurar Discord Webhook
-DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
-# Configurar Google Sheets
+
+# Configurar múltiples clientes
+SHOPIFY_WEBHOOK_SECRET_DEV = os.getenv("SHOPIFY_WEBHOOK_SECRET_DEV")
+SHOPIFY_WEBHOOK_SECRET_CHAPARRITA = os.getenv("SHOPIFY_WEBHOOK_SECRET_CHAPARRITA")
+
+EMAIL_SENDER_CHAPARRITA = os.getenv("EMAIL_SENDER_CHAPARRITA")
+DISCORD_WEBHOOK_URL_CHAPARRITA = os.getenv("DISCORD_WEBHOOK_URL_CHAPARRITA")
+GOOGLE_SHEET_ID_CHAPARRITA = os.getenv("GOOGLE_SHEET_ID_CHAPARRITA")
+
+# Configurar Google Sheets (shared)
 GOOGLE_SHEETS_CREDENTIALS = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
-GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 
 # Importar funciones de base de datos
 from database import save_webhook, get_webhooks, get_webhook_count
@@ -100,6 +106,51 @@ logger.addHandler(console_handler)
 # =========================
 # 🔐 SEGURIDAD: Verificación HMAC
 # =========================
+
+def get_client_config(shop_domain: str, hmac_header: str, request_data: bytes) -> dict:
+    """
+    Detecta de qué cliente viene el webhook y retorna su configuración.
+    
+    Args:
+        shop_domain: Dominio de la tienda (ej: connie-dev-studio.myshopify.com)
+        hmac_header: HMAC header del webhook
+        request_data: Body del request para verificar
+    
+    Returns:
+        Dict con configuración del cliente o None si no es válido
+    """
+    # Mapeo de dominios a configuraciones
+    client_configs = {
+        'connie-dev-studio.myshopify.com': {
+            'name': 'DEV',
+            'webhook_secret': SHOPIFY_WEBHOOK_SECRET_DEV,
+            'email': EMAIL_SENDER,
+            'discord': DISCORD_WEBHOOK_URL,
+            'sheet_id': GOOGLE_SHEET_ID
+        },
+        'lachaparrita-shop.myshopify.com': {
+            'name': 'La Chaparrita',
+            'webhook_secret': SHOPIFY_WEBHOOK_SECRET_CHAPARRITA,
+            'email': EMAIL_SENDER_CHAPARRITA or EMAIL_SENDER,
+            'discord': DISCORD_WEBHOOK_URL_CHAPARRITA or DISCORD_WEBHOOK_URL,
+            'sheet_id': GOOGLE_SHEET_ID_CHAPARRITA or GOOGLE_SHEET_ID
+        }
+    }
+    
+    # Buscar configuración por dominio
+    config = client_configs.get(shop_domain)
+    
+    if not config:
+        logger.warning(f"⚠️ Cliente no configurado: {shop_domain}")
+        return None
+    
+    # Verificar HMAC con el secret del cliente
+    if not verify_shopify_webhook(request_data, hmac_header, config['webhook_secret']):
+        logger.warning(f"⚠️ HMAC inválido para {config['name']}")
+        return None
+    
+    logger.info(f"✅ Cliente identificado: {config['name']}")
+    return config
 
 def verify_shopify_webhook(data: bytes, hmac_header: str, secret: str) -> bool:
     """
@@ -162,7 +213,7 @@ def is_simulation_mode(request) -> bool:
 # =========================
 # 📊 FUNCIONES DE DIAGNÓSTICO
 # =========================
-def send_email_alert(subject: str, products_list: list) -> bool:
+def send_email_alert(subject: str, products_list: list, email_to: str = None) -> bool:
     """
     Envía email de alerta usando SendGrid API.
     
@@ -174,7 +225,8 @@ def send_email_alert(subject: str, products_list: list) -> bool:
         True si envío exitoso, False si falla
     """
     # Verificar que SendGrid esté configurado
-    if not SENDGRID_API_KEY or not EMAIL_SENDER:
+    email_recipient = email_to or EMAIL_SENDER
+    if not SENDGRID_API_KEY or not email_recipient:
         logger.warning("⚠️ SendGrid no configurado, saltando alerta")
         return False
     
@@ -214,7 +266,7 @@ Powered by Railway + Shopify + SendGrid
         # Crear mensaje
         message = Mail(
             from_email=EMAIL_SENDER,
-            to_emails=EMAIL_SENDER,
+            to_emails=email_recipient,
             subject=subject,
             plain_text_content=body
         )
@@ -230,7 +282,7 @@ Powered by Railway + Shopify + SendGrid
         logger.error(f"❌ Error enviando email con SendGrid: {e}")
         return False
     
-def send_discord_alert(alert_type: str, products_list: list) -> bool:
+def send_discord_alert(alert_type: str, products_list: list, discord_url: str = None) -> bool:
     """
     Envía alerta a Discord usando webhooks.
     
@@ -241,7 +293,8 @@ def send_discord_alert(alert_type: str, products_list: list) -> bool:
     Returns:
         True si envío exitoso, False si falla
     """
-    if not DISCORD_WEBHOOK_URL:
+    webhook_url = discord_url or DISCORD_WEBHOOK_URL
+    if not webhook_url:
         logger.warning("⚠️ Discord webhook no configurado, saltando alerta")
         return False
     
@@ -308,9 +361,10 @@ def send_discord_alert(alert_type: str, products_list: list) -> bool:
         }
         
         # Enviar a Discord
+        # Enviar a Discord
         import requests
         response = requests.post(
-            DISCORD_WEBHOOK_URL,
+            webhook_url,
             json=payload,
             headers={"Content-Type": "application/json"}
         )
@@ -326,7 +380,7 @@ def send_discord_alert(alert_type: str, products_list: list) -> bool:
         logger.error(f"❌ Error enviando Discord alert: {e}")
         return False    
 
-def send_to_google_sheets(alert_type: str, products_list: list) -> bool:
+def send_to_google_sheets(alert_type: str, products_list: list, sheet_id: str = None) -> bool:
     """
     Envía datos a Google Sheets.
     
@@ -337,7 +391,8 @@ def send_to_google_sheets(alert_type: str, products_list: list) -> bool:
     Returns:
         True si exitoso, False si falla
     """
-    if not GOOGLE_SHEETS_CREDENTIALS or not GOOGLE_SHEET_ID:
+    target_sheet_id = sheet_id or GOOGLE_SHEET_ID
+    if not GOOGLE_SHEETS_CREDENTIALS or not target_sheet_id:
         logger.warning("⚠️ Google Sheets no configurado, saltando export")
         return False
     
@@ -356,7 +411,7 @@ def send_to_google_sheets(alert_type: str, products_list: list) -> bool:
         client = gspread.authorize(creds)
         
         # Abrir sheet
-        sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
+        sheet = client.open_by_key(target_sheet_id).sheet1
         
         # Preparar datos
         from datetime import datetime
@@ -424,15 +479,18 @@ def process_new_order(order_data: dict) -> bool:
         
         # Enviar a Discord
         send_discord_order_alert(order_number, customer_name, customer_email, 
-                                 products_summary, total_price, currency, shipping_address)
-        
+                                products_summary, total_price, currency, shipping_address,
+                                discord_url=current_discord)
+
         # Enviar Email
         send_email_order_alert(order_number, customer_name, customer_email,
-                              products_summary, total_price, currency, shipping_address)
-        
+                              products_summary, total_price, currency, shipping_address,
+                              email_to=current_email)
+
         # Guardar en Google Sheets
         save_order_to_sheets(order_number, customer_name, customer_email,
-                            products_summary, total_price, currency, shipping_address)
+                            products_summary, total_price, currency, shipping_address,
+                            sheet_id=current_sheet_id)
         
         return True
         
@@ -441,11 +499,13 @@ def process_new_order(order_data: dict) -> bool:
         return False
 
 def send_discord_order_alert(order_number: str, customer_name: str, customer_email: str,
-                             products: list, total: str, currency: str, address: str) -> bool:
+                             products: list, total: str, currency: str, address: str,
+                             discord_url: str = None) -> bool:
     """
     Envía alerta de nueva orden a Discord.
     """
-    if not DISCORD_WEBHOOK_URL:
+    webhook_url = discord_url or DISCORD_WEBHOOK_URL
+    if not webhook_url:
         logger.warning("⚠️ Discord webhook no configurado")
         return False
     
@@ -507,7 +567,7 @@ def send_discord_order_alert(order_number: str, customer_name: str, customer_ema
         # Enviar a Discord
         import requests
         response = requests.post(
-            DISCORD_WEBHOOK_URL,
+            webhook_url,
             json=payload,
             headers={"Content-Type": "application/json"}
         )
@@ -524,11 +584,13 @@ def send_discord_order_alert(order_number: str, customer_name: str, customer_ema
         return False
 
 def send_email_order_alert(order_number: str, customer_name: str, customer_email: str,
-                          products: list, total: str, currency: str, address: str) -> bool:
+                          products: list, total: str, currency: str, address: str,
+                          email_to: str = None) -> bool:
     """
     Envía email de alerta de nueva orden.
     """
-    if not SENDGRID_API_KEY or not EMAIL_SENDER:
+    email_recipient = email_to or EMAIL_SENDER
+    if not SENDGRID_API_KEY or not email_recipient:
         logger.warning("⚠️ Email no configurado")
         return False
     
@@ -581,7 +643,7 @@ Powered by Railway + Shopify
         # Crear mensaje
         message = Mail(
             from_email=EMAIL_SENDER,
-            to_emails=EMAIL_SENDER,
+            to_emails=email_recipient,
             subject=f"🛒 Nueva Orden #{order_number} - {customer_name}",
             plain_text_content=body
         )
@@ -598,14 +660,15 @@ Powered by Railway + Shopify
         return False
 
 def save_order_to_sheets(order_number: str, customer_name: str, customer_email: str,
-                        products: list, total: str, currency: str, address: str) -> bool:
+                        products: list, total: str, currency: str, address: str,
+                        sheet_id: str = None) -> bool:
     """
     Guarda orden en Google Sheets.
     """
-    if not GOOGLE_SHEETS_CREDENTIALS or not GOOGLE_SHEET_ID:
+    target_sheet_id = sheet_id or GOOGLE_SHEET_ID
+    if not GOOGLE_SHEETS_CREDENTIALS or not target_sheet_id:
         logger.warning("⚠️ Google Sheets no configurado")
         return False
-    
     try:
         # Parsear credenciales JSON
         creds_dict = json.loads(GOOGLE_SHEETS_CREDENTIALS)
@@ -621,7 +684,7 @@ def save_order_to_sheets(order_number: str, customer_name: str, customer_email: 
         client = gspread.authorize(creds)
         
         # Abrir la segunda hoja (Órdenes Nuevas)
-        spreadsheet = client.open_by_key(GOOGLE_SHEET_ID)
+        spreadsheet = client.open_by_key(target_sheet_id)
         sheet = spreadsheet.worksheet("Órdenes Nuevas")
         
         # Preparar datos
@@ -717,19 +780,22 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None) -> dict:
         # ✅ NUEVO: Enviar email de alerta
         send_email_alert(
             f"🚨 Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
-            products[:10]
+            products[:10],
+            email_to=current_email
         )
 
         # ✅ NUEVO: Enviar Discord alert
         send_discord_alert(
             f"Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
-            products[:10]
+            products[:10],
+            discord_url=current_discord
         )
 
         # ✅ NUEVO: Exportar a Google Sheets
         send_to_google_sheets(
             f"Stock Bajo <= {threshold}",
-            products[:10]
+            products[:10],
+            sheet_id=current_sheet_id
         )
 
         return {
@@ -1077,15 +1143,32 @@ def webhook_shopify():
         # Detectar modo
         simulation = is_simulation_mode(request)
         
-        # Verificar HMAC si es webhook real
+        # Verificar HMAC y obtener configuración del cliente
         if not simulation:
+            shop_domain = request.headers.get('X-Shopify-Shop-Domain', 'unknown')
             hmac_header = request.headers.get('X-Shopify-Hmac-Sha256')
-            if not verify_shopify_webhook(request.data, hmac_header, SHOPIFY_WEBHOOK_SECRET):
-                logger.warning("⚠️ Webhook rechazado: HMAC inválido")
+            
+            # Obtener configuración del cliente
+            client_config = get_client_config(shop_domain, hmac_header, request.data)
+            
+            if not client_config:
+                logger.warning(f"⚠️ Webhook rechazado de {shop_domain}")
                 return jsonify({
                     "status": "error",
-                    "message": "Invalid HMAC signature"
+                    "message": "Invalid client or HMAC signature"
                 }), 401
+            
+            # Usar configuración del cliente
+            current_email = client_config['email']
+            current_discord = client_config['discord']
+            current_sheet_id = client_config['sheet_id']
+            
+            logger.info(f"📥 Webhook de {client_config['name']}")
+        else:
+            # Modo simulación usa configuración por defecto (dev)
+            current_email = EMAIL_SENDER
+            current_discord = DISCORD_WEBHOOK_URL
+            current_sheet_id = GOOGLE_SHEET_ID
         
         # Obtener topic (tipo de evento)
         topic = request.headers.get('X-Shopify-Topic', 'simulation/test')
