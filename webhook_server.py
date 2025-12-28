@@ -522,10 +522,18 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
         # Extraer información clave
         order_number = order_data.get('order_number', 'N/A')
         order_id = order_data.get('id', 'N/A')
+        
+        # ✅ MEJORADO: Extraer dirección de envío PRIMERO (para obtener phone)
+        shipping = order_data.get('shipping_address') or {}
+        
+        # Información del cliente
         customer = order_data.get('customer') or {}
         customer_name = f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
         customer_email = customer.get('email', 'No email')
         
+        # ✅ NUEVO: Teléfono (intentar de customer primero, luego shipping)
+        customer_phone = customer.get('phone') or shipping.get('phone') or 'Sin teléfono'
+
         total_price = order_data.get('total_price', '0.00')
         currency = order_data.get('currency', 'USD')
         
@@ -607,7 +615,7 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
         logger.error(f"❌ Error procesando orden: {e}")
         return False
     
-def send_discord_order_alert(order_number: str, customer_name: str, customer_email: str,
+def send_discord_order_alert(order_number, customer_name, customer_email, customer_phone,
                              products: list, total: str, currency: str, address: str,
                              customer_note: str = "", extra_notes: list = None,
                              discord_url: str = None, shop_name: str = None) -> bool:
@@ -689,7 +697,7 @@ def send_discord_order_alert(order_number: str, customer_name: str, customer_ema
         fields = [
             {
                 "name": "👤 Cliente",
-                "value": f"**{customer_name}**\n📧 {customer_email}",
+                "value": f"**{customer_name}**\n📧 {customer_email}\n📱 {customer_phone}",  # ✅ NUEVO
                 "inline": False
             },
             {
@@ -769,7 +777,7 @@ def send_discord_order_alert(order_number: str, customer_name: str, customer_ema
         logger.error(f"❌ Error enviando Discord order alert: {e}")
         return False
 
-def send_email_order_alert(order_number: str, customer_name: str, customer_email: str,
+def send_email_order_alert(order_number, customer_name, customer_email, customer_phone,
                           products: list, total: str, currency: str, address: str,
                           customer_note: str = "", extra_notes: list = None,
                           email_to: str = None, shop_name: str = None) -> bool:
@@ -818,6 +826,7 @@ Orden #{order_number}
 CLIENTE:
 Nombre: {customer_name}
 Email: {customer_email}
+Teléfono: {customer_phone}
 
 ════════════════════════════════════════
 
@@ -860,7 +869,7 @@ Powered by Railway + Shopify
         logger.error(f"❌ Error enviando email de orden: {e}")
         return False
     
-def save_order_to_sheets(order_number: str, customer_name: str, customer_email: str,
+def save_order_to_sheets(order_number, customer_name, customer_email, customer_phone,
                         products: list, total: str, currency: str, address: str,
                         customer_note: str = "",
                         sheet_id: str = None, shop_name: str = None) -> bool:
@@ -911,9 +920,10 @@ def save_order_to_sheets(order_number: str, customer_name: str, customer_email: 
             f"Orden #{order_number}",
             customer_name,
             customer_email,
+            customer_phone, 
             productos_resumen,
             f"${total} {currency}",
-            nota_resumen,  # ✅ NUEVO: Columna de notas
+            nota_resumen,  
             shop_name or 'Unknown Store'
         ]
                 
