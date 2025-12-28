@@ -841,15 +841,15 @@ def alert_no_sales(df: pd.DataFrame, days: int = None,
     dict con información de la alerta
     """
     # ✅ Mejora: Evaluar default en runtime
-    if days_threshold is None:
-        days_threshold = NO_SALES_DAYS
+    if days is None:
+        days = NO_SALES_DAYS
     
     if "last_sold_date" not in df.columns:
         return {"triggered": False, "count": 0, "products": []}
     
     df_copy = df.copy()
     df_copy['last_sold_date'] = pd.to_datetime(df_copy['last_sold_date'], errors='coerce')
-    threshold_date = pd.Timestamp.now() - pd.Timedelta(days=days_threshold)
+    threshold_date = pd.Timestamp.now() - pd.Timedelta(days=days)
     
     no_sales = df_copy[df_copy['last_sold_date'] < threshold_date]
     
@@ -858,13 +858,13 @@ def alert_no_sales(df: pd.DataFrame, days: int = None,
         path = _save_alert(
             no_sales,
             "no_sales",
-            f"🚨 ALERTA: {len(no_sales)} productos sin ventas en {days_threshold} días"
+            f"🚨 ALERTA: {len(no_sales)} productos sin ventas en {days} días"
         )
         
         return {
             "triggered": True,
             "count": len(no_sales),
-            "days_threshold": days_threshold,
+            "days_threshold": days,
             "file": path
         }
     
