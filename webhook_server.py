@@ -48,8 +48,7 @@ from config_shared import (
     LOG_FILE,
     EMAIL_SENDER,
     validate_config
-)
-
+)       
 # Configurar SendGrid API Key
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 
@@ -73,6 +72,13 @@ EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 from database import save_webhook, get_webhooks, get_webhook_count
 # ✅ NUEVO: Sistema anti-duplicados
 from alert_deduplication import get_deduplicator, ALERT_TTL_CONFIG
+
+# ============= NUEVO: Sistema de eventos =============
+from src.utils.event_logger import EventLogger
+from src.events.alert_events import AlertEvents
+from src.events.system_events import SystemEvents
+import time  # Para medir duration
+# ====================================================
 
 # =========================
 # ⚙️ CONFIGURACIÓN GLOBAL
@@ -976,11 +982,16 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
                    sheet_id: str = None, shop_name: str = None) -> dict:
     """
     Detecta productos con stock bajo.
-    ✅ MEJORA v2.6: Sistema anti-duplicados integrado
+    ✅ MEJORA v3.0: Sistema de eventos integrado
     
     Returns:
         dict con información de la alerta
     """
+    # ============= NUEVO: Inicializar event logger =============
+    event_logger_alert = EventLogger(client_id=shop_name or "unknown_shop")
+    alert_events = AlertEvents(event_logger_alert)
+    # ===========================================================
+    
     # Evaluar threshold en runtime
     if threshold is None:
         threshold = LOW_STOCK_THRESHOLD
@@ -998,15 +1009,22 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
             f"🚨 ALERTA: {len(low_stock)} productos con stock <= {threshold}"
         )
         
-        products = low_stock[["product_id", "name", "stock"]].to_dict('records')
+        # ================= CORRECCIÓN: Columnas opcionales =================
+        columns = ["product_id", "name", "stock"]
+        for col in ["sku", "price"]:
+            if col in low_stock.columns:
+                columns.append(col)
         
-        # ✅ NUEVO: Sistema de deduplicación
+        products = low_stock[columns].to_dict('records')
+        # ==================================================================
+
+        # Sistema de deduplicación
         dedup = get_deduplicator()
         alerts_sent = 0
         alerts_skipped = 0
         
-        # Procesar cada producto individualmente
-        for product in products[:10]:  # Máximo 10 productos
+        # Procesar cada producto individualmente (máx 10)
+        for product in products[:10]:
             product_id = product.get('product_id')
             product_name = product.get('name', 'Sin nombre')
             product_stock = product.get('stock', 0)
@@ -1018,8 +1036,33 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
                 product_id=product_id,
                 shop=shop_name
             ):
-                # ✅ SÍ ENVIAR - No es duplicado
+                # ✅ Enviar alerta
                 logger.info(f"📧 Enviando alerta: {product_name} (Stock: {product_stock})")
+                
+                # ============= Log evento ANTES de enviar =============
+                alert_id = f"alert_{product_id}_{int(time.time())}"
+                
+                if product_stock == 0:
+                    severity = "critical"
+                elif product_stock <= 3:
+                    severity = "critical"
+                elif product_stock <= 7:
+                    severity = "warning"
+                else:
+                    severity = "info"
+                
+                alert_events.inventory_low_sent(
+                    alert_id=alert_id,
+                    severity=severity,
+                    channel="discord",
+                    product_id=int(product_id),
+                    product_sku=product.get('sku', 'N/A'),
+                    product_name=product_name,
+                    current_qty=product_stock,
+                    threshold=threshold
+                )
+                logger.info(f"📝 Evento logeado: alert.inventory_low.sent [{alert_id}]")
+                # ======================================================
                 
                 # Email
                 send_email_alert(
@@ -1045,7 +1088,7 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
                     shop_name=shop_name
                 )
                 
-                # ✅ MARCAR como enviado (para que no se repita)
+                # Marcar como enviado
                 dedup.mark_sent(
                     "low_stock",
                     ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
@@ -1055,7 +1098,7 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
                 
                 alerts_sent += 1
             else:
-                # ⏭️ NO ENVIAR - Es duplicado
+                # ⏭️ Alerta duplicada
                 logger.info(f"⏭️  Alerta ignorada (duplicado): {product_name}")
                 alerts_skipped += 1
         
@@ -1068,7 +1111,7 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
             "file": path,
             "products": products[:10]
         }
-    
+
     return {"triggered": False, "count": 0, "products": []}
 
 def alert_no_sales(df: pd.DataFrame, days: int = None,
@@ -1222,10 +1265,6 @@ def webhook():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Esto solo se ejecuta cuando corres el archivo directamente
-# NO afecta cuando Gunicorn lo ejecuta
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8000)
 
 # ✅ Mejora v2.5: Límite de tamaño de payload
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
@@ -1430,6 +1469,11 @@ def webhook_shopify():
             current_sheet_id = client_config['sheet_id']
             current_shop_name = client_config['shop_name']  # ← NUEVO
             
+            # === NUEVO: Instanciar logger de eventos para este cliente ===
+            event_logger = EventLogger(client_id=current_shop_name.replace(" ", "_").lower())  # Ej: "la_chaparrita"
+            # Ejemplos de client_id que generará:
+            # - "la_chaparrita"
+            # - "development_store"
             logger.info(f"📥 Webhook de {client_config['name']}")
         else:
             # Modo simulación usa configuración por defecto (dev)
@@ -1501,7 +1545,8 @@ def webhook_shopify():
                         "product_id": variant.get("id"),
                         "name": f"{product.get('title')} - {variant.get('title')}",
                         "stock": variant.get("inventory_quantity"),
-                        "last_sold_date": variant.get("last_sold_date")
+                        "last_sold_date": variant.get("last_sold_date"),
+                        "sku": variant.get("sku")  # ← AÑADIDO para alertas
                     })
         
         # Formato webhook real de Shopify (producto individual)
@@ -1511,7 +1556,8 @@ def webhook_shopify():
                     "product_id": variant.get("id"),
                     "name": f"{payload.get('title')} - {variant.get('title')}",
                     "stock": variant.get("inventory_quantity"),
-                    "last_sold_date": None
+                    "last_sold_date": None,
+                    "sku": variant.get("sku")  # ← AÑADIDO
                 })
         
         # Formato webhook de orden
@@ -1528,7 +1574,8 @@ def webhook_shopify():
                     "product_id": item.get("variant_id"),
                     "name": item.get("title"),
                     "quantity": item.get("quantity"),
-                    "price": item.get("price")
+                    "price": item.get("price"),
+                    "sku": item.get("sku")  # ← AÑADIDO
                 })
         
         if not rows:
@@ -1554,6 +1601,12 @@ def webhook_shopify():
         
         # Guardar payload
         payload_file = save_payload(df, f"shopify_webhook_{topic.replace('/', '_')}")
+       
+        # ============= NUEVO: Inicializar eventos =============
+        start_time = time.time()
+        event_logger = EventLogger(client_id=current_shop_name)  # ← Renombrado
+        system_events = SystemEvents(event_logger)   # ← Usar event_logger
+        # ======================================================
         
         # Ejecutar diagnósticos
         alerts = {
@@ -1573,6 +1626,35 @@ def webhook_shopify():
         
         # Procesar datos
         df_clean = process_data(df)
+        
+        # ============= NUEVO: Log evento system.check_completed =============
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        # Calcular alertas suppressed (las que se dedupe evitó)
+        total_suppressed = sum([
+            alerts["low_stock"].get("alerts_deduplicated", 0),
+            # Agregar otras cuando las implementes
+        ])
+        
+        # Calcular alertas triggered
+        total_triggered = sum([
+            1 if alerts["low_stock"]["triggered"] else 0,
+            1 if alerts["no_sales"]["triggered"] else 0,
+            1 if alerts["missing_data"]["triggered"] else 0
+        ])
+        
+        # LOG EVENTO: system.check_completed
+        system_events.check_completed(
+            checks_evaluated=["inventory_low", "no_sales", "missing_data"],
+            alerts_triggered=total_triggered,
+            alerts_suppressed=total_suppressed,
+            suppression_reasons={},  # Después lo llenamos
+            products_checked=len(df_clean),
+            duration_ms=duration_ms,
+            errors=0
+        )
+        event_logger.logger.info(f"📝 Evento logeado: system.check_completed [checks={len(df_clean)} products, duration={duration_ms}ms]")
+         # ====================================================================
         
         # Respuesta informativa
         response = {
