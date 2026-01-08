@@ -50,13 +50,34 @@ class AnalyticsIntegrator:
         Obtiene analytics engine para una tienda
         
         Args:
-            shop_name: Nombre de la tienda
+            shop_name: Nombre de la tienda (puede ser domain o nombre amigable)
         
         Returns:
             ShopifyAnalytics instance o None
         """
-        return self.engines.get(shop_name)
-    
+        # Mapeo de nombres amigables a shop domains
+        name_map = {
+            'La Chaparrita': 'chaparrita-boots',
+            'la chaparrita': 'chaparrita-boots',
+            'chaparrita': 'chaparrita-boots',
+            'Development Store': 'connie-dev-studio',
+            'connie': 'connie-dev-studio'
+        }
+        
+        # Intentar con el nombre directo primero
+        engine = self.engines.get(shop_name)
+        if engine:
+            return engine
+        
+        # Si no encuentra, intentar con el mapeo
+        mapped_name = name_map.get(shop_name)
+        if mapped_name:
+            return self.engines.get(mapped_name)
+        
+        # Log de debug
+        print(f"No analytics engine for {shop_name}")
+        return None
+        
     def enrich_alert(self, product_data: dict, shop_name: str) -> dict:
         """
         Enriquece datos de alerta con analytics
