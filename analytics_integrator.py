@@ -167,7 +167,7 @@ if __name__ == '__main__':
     import os
     
     # Simular env vars (para test)
-    os.environ['SHOPIFY_ACCESS_TOKEN_CHAPARRITA'] = 'os.getenv('SHOPIFY_ACCESS_TOKEN_CHAPARRITA', 'TOKEN_AQUI')'
+    os.environ['SHOPIFY_ACCESS_TOKEN_CHAPARRITA'] = os.getenv('SHOPIFY_ACCESS_TOKEN_CHAPARRITA', 'TOKEN_AQUI')
     
     # Crear integrator
     integrator = get_analytics_integrator()

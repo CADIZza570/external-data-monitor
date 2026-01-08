@@ -291,7 +291,7 @@ class ShopifyAnalytics:
 if __name__ == '__main__':
     # Configuración
     SHOP_NAME = "chaparrita-boots"
-    ACCESS_TOKEN = "os.getenv('SHOPIFY_ACCESS_TOKEN_CHAPARRITA', 'TOKEN_AQUI')"
+    ACCESS_TOKEN = os.getenv('SHOPIFY_ACCESS_TOKEN_CHAPARRITA', 'TOKEN_AQUI')
     
     # Crear analytics engine
     analytics = ShopifyAnalytics(SHOP_NAME, ACCESS_TOKEN)
