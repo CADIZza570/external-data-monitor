@@ -37,6 +37,9 @@ import gspread
 from google.oauth2.service_account import Credentials
 import json
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # Importamos config y la función de validación centralizada
 from config_shared import (
     SHOPIFY_WEBHOOK_SECRET,
@@ -72,6 +75,7 @@ EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 from database import save_webhook, get_webhooks, get_webhook_count
 # ✅ NUEVO: Sistema anti-duplicados
 from alert_deduplication import get_deduplicator, ALERT_TTL_CONFIG
+from business_adapter import BusinessAdapter  # ← NUEVA
 
 # ============= NUEVO: Sistema de eventos =============
 from src.utils.event_logger import EventLogger
@@ -137,6 +141,7 @@ def get_client_config(shop_domain: str, hmac_header: str, request_data: bytes) -
         'connie-dev-studio.myshopify.com': {
             'name': 'DEV',
             'shop_name': 'Development Store',  # ← NUEVO
+            'business_type': 'ecommerce',  # ← NUEVA LÍNEA
             'webhook_secret': SHOPIFY_WEBHOOK_SECRET_DEV,
             'email': EMAIL_SENDER,
             'discord': DISCORD_WEBHOOK_URL,
@@ -145,6 +150,7 @@ def get_client_config(shop_domain: str, hmac_header: str, request_data: bytes) -
         'chaparrita-boots.myshopify.com': {
             'name': 'La Chaparrita',
             'shop_name': 'La Chaparrita',  # ← NUEVO
+            'business_type': 'retail',  # ← NUEVA LÍNEA (cambia según tu negocio)
             'webhook_secret': SHOPIFY_WEBHOOK_SECRET_CHAPARRITA,
             'email': EMAIL_SENDER_CHAPARRITA or EMAIL_SENDER,
             'discord': DISCORD_WEBHOOK_URL_CHAPARRITA or DISCORD_WEBHOOK_URL,
@@ -298,18 +304,19 @@ Powered by Railway + Shopify + SendGrid
     except Exception as e:
         logger.error(f"❌ Error enviando email con SendGrid: {e}")
         return False
-    
+
 def send_discord_alert(alert_type: str, products_list: list, discord_url: str = None,
-                      shop_name: str = None) -> bool:
+                      shop_name: str = None, analytics_data: dict = None) -> bool:
     """
     Envía alerta a Discord usando webhooks con formato profesional mejorado.
-    ✅ MEJORA v2.7: Formato premium con más contexto y urgencia visual
+    ✅ MEJORA v3.2: Soporte para analytics integrados
     
     Args:
-        alert_type: Tipo de alerta (ej: "Stock Bajo Detectado")
+        alert_type: Tipo de alerta o mensaje personalizado
         products_list: Lista de productos con alerta
         discord_url: URL del webhook de Discord
         shop_name: Nombre de la tienda
+        analytics_data: Datos de analytics (velocity, stockout, etc.) - NUEVO
     
     Returns:
         True si envío exitoso, False si falla
@@ -376,11 +383,28 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
             if 'sku' in product and product['sku']:
                 productos_texto += f"├─ 🏷️ SKU: `{product['sku']}`\n"
             
-            if 'price' in product and product['price']:
-                productos_texto += f"├─ 💰 Precio: **${product['price']}**\n"
+            # ============= NUEVO: ANALYTICS =============
+            if analytics_data or ('velocity' in product):
+                # Usar analytics del product si existe
+                analytics = analytics_data or product
+                
+                if 'velocity' in analytics:
+                    productos_texto += f"├─ 📊 Velocidad: **{analytics['velocity']:.2f} unidades/día**\n"
+                
+                if 'days_until_stockout' in analytics:
+                    days = analytics['days_until_stockout']
+                    if days and days > 0:
+                        productos_texto += f"├─ ⏱️ Se agota en: **{days:.0f} días**\n"
+                
+                if 'sales_last_30d' in analytics:
+                    productos_texto += f"├─ 📈 Vendidos (30d): **{analytics['sales_last_30d']} unidades**\n"
+                
+                if 'stockout_date' in analytics and analytics['stockout_date']:
+                    productos_texto += f"├─ 📅 Fecha estimada: **{analytics['stockout_date']}**\n"
+            # ============================================
             
             # Calcular valor en riesgo
-            if 'price' in product and 'stock' in product:
+            if 'price' in product and product['price']:
                 try:
                     price_float = float(product['price'])
                     stock_int = int(product['stock'])
@@ -422,7 +446,7 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
                 }
             ],
             "footer": {
-                "text": f"Sistema de Alertas Inteligente • Anti-Spam Activado • Powered by Railway",
+                "text": f"Sistema de Alertas Inteligente • Analytics Activado • Powered by Railway",
                 "icon_url": "https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg"
             },
             "timestamp": now.isoformat()
@@ -452,7 +476,7 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
             
     except Exception as e:
         logger.error(f"❌ Error enviando Discord alert: {e}")
-        return False
+        return False    
 
 def send_to_google_sheets(alert_type: str, products_list: list, sheet_id: str = None,
                          shop_name: str = None) -> bool:
@@ -979,140 +1003,159 @@ def _save_alert(df: pd.DataFrame, alert_type: str, message: str) -> str:
 
 def alert_low_stock(df: pd.DataFrame, threshold: int = None,
                    email_to: str = None, discord_url: str = None,
-                   sheet_id: str = None, shop_name: str = None) -> dict:
+                   sheet_id: str = None, shop_name: str = None,
+                   business_type: str = 'ecommerce') -> dict:  # ← NUEVO PARÁMETRO
     """
-    Detecta productos con stock bajo.
-    ✅ MEJORA v3.0: Sistema de eventos integrado
+    Detecta productos con stock bajo usando BusinessAdapter.
+    ✅ MEJORA v3.1: Thresholds dinámicos según rubro
     
     Returns:
         dict con información de la alerta
     """
-    # ============= NUEVO: Inicializar event logger =============
+
+     # ============= NUEVO: Importar analytics =============
+    from analytics_integrator import get_analytics_integrator
+
+    analytics_integrator = get_analytics_integrator()
+    # ====================================================
+
+    # ============= NUEVO: Usar BusinessAdapter =============
+    adapter = BusinessAdapter(business_type)
     event_logger_alert = EventLogger(client_id=shop_name or "unknown_shop")
     alert_events = AlertEvents(event_logger_alert)
-    # ===========================================================
-    
-    # Evaluar threshold en runtime
-    if threshold is None:
-        threshold = LOW_STOCK_THRESHOLD
+    # ========================================================
     
     if "stock" not in df.columns:
         return {"triggered": False, "count": 0, "products": []}
     
-    low_stock = df[df["stock"] <= threshold]
+    # ✅ NUEVO: En lugar de threshold global, usar adapter
+    # (Procesar cada producto individualmente)
     
-    if not low_stock.empty:
-        # Guardar CSV (como antes)
-        path = _save_alert(
-            low_stock, 
-            "low_stock", 
-            f"🚨 ALERTA: {len(low_stock)} productos con stock <= {threshold}"
+    low_stock_products = []
+    
+    for _, row in df.iterrows():
+        product_name = row.get('name', 'Sin nombre')
+        stock = row.get('stock', 0)
+        product_id = row.get('product_id')
+        
+        # ✅ USAR ADAPTER para evaluar
+        evaluation = adapter.evaluate_stock(
+            product_name=product_name,
+            stock=stock,
+            price=row.get('price', 0),
+            sku=row.get('sku', 'N/A')
         )
         
-        # ================= CORRECCIÓN: Columnas opcionales =================
-        columns = ["product_id", "name", "stock"]
-        for col in ["sku", "price"]:
-            if col in low_stock.columns:
-                columns.append(col)
+        # Solo alertar si urgency es crítica o warning
+        if evaluation['urgency'] in ['critical', 'outofstock', 'warning']:
+            low_stock_products.append({
+                'product_id': product_id,
+                'name': product_name,
+                'stock': stock,
+                'sku': row.get('sku', 'N/A'),
+                'price': row.get('price', 0),
+                'evaluation': evaluation  # ← Incluir evaluación completa
+            })
+    
+    if not low_stock_products:
+        return {"triggered": False, "count": 0, "products": []}
+    
+    # Guardar CSV
+    low_stock_df = pd.DataFrame(low_stock_products)
+    path = _save_alert(
+        low_stock_df, 
+        "low_stock", 
+        f"🚨 ALERTA ({business_type}): {len(low_stock_products)} productos con stock bajo"
+    )
+    
+    # Sistema de deduplicación (igual que antes)
+    dedup = get_deduplicator()
+    alerts_sent = 0
+    alerts_skipped = 0
+    
+    for product in low_stock_products[:10]:
+        product_id = product.get('product_id')
+        evaluation = product.get('evaluation')
+         
+        # ============= NUEVO: Enriquecer con analytics =============
+        product = analytics_integrator.enrich_alert(product, shop_name)
+        analytics_msg = analytics_integrator.format_analytics_message(product)
+        # ===========================================================
         
-        products = low_stock[columns].to_dict('records')
-        # ==================================================================
+        # ✅ Agregar analytics al mensaje (si Discord está configurado)
+        if analytics_msg:
+            logger.info(f"📊 {analytics_msg.split(chr(10))[0]}")  # Log primera línea
 
-        # Sistema de deduplicación
-        dedup = get_deduplicator()
-        alerts_sent = 0
-        alerts_skipped = 0
-        
-        # Procesar cada producto individualmente (máx 10)
-        for product in products[:10]:
-            product_id = product.get('product_id')
-            product_name = product.get('name', 'Sin nombre')
-            product_stock = product.get('stock', 0)
+        if dedup.should_send_alert(
+            "low_stock", 
+            ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
+            product_id=product_id,
+            shop=shop_name
+        ):
+            # ✅ USAR MENSAJE DEL ADAPTER
+            logger.info(f"📧 Enviando alerta: {evaluation['message']}")
             
-            # Verificar si ya se alertó en las últimas 24h
-            if dedup.should_send_alert(
-                "low_stock", 
+            # Log evento
+            alert_id = f"alert_{product_id}_{int(time.time())}"
+            alert_events.inventory_low_sent(
+                alert_id=alert_id,
+                severity=evaluation['severity'],
+                channel="discord",
+                product_id=int(product_id),
+                product_sku=product.get('sku', 'N/A'),
+                product_name=product.get('name'),
+                current_qty=product.get('stock'),
+                threshold=evaluation['thresholds']['warning']
+            )
+            
+            # Enviar alertas (MISMO CÓDIGO)
+            send_email_alert(
+                f"{evaluation['color']} {evaluation['action']}: {product['name']}",
+                [product],
+                email_to=email_to,
+                shop_name=shop_name
+            )
+            
+            # Mensaje completo con analytics
+            full_message = evaluation['message']
+            if analytics_msg:
+                full_message += f"\n\n{analytics_msg}"
+
+            send_discord_alert(
+                full_message,  # ← Ahora incluye analytics
+                [product],
+                discord_url=discord_url,
+                shop_name=shop_name
+            )
+            
+            send_to_google_sheets(
+                f"Stock Bajo ({business_type})",
+                [product],
+                sheet_id=sheet_id,
+                shop_name=shop_name
+            )
+            
+            dedup.mark_sent(
+                "low_stock",
                 ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
                 product_id=product_id,
                 shop=shop_name
-            ):
-                # ✅ Enviar alerta
-                logger.info(f"📧 Enviando alerta: {product_name} (Stock: {product_stock})")
-                
-                # ============= Log evento ANTES de enviar =============
-                alert_id = f"alert_{product_id}_{int(time.time())}"
-                
-                if product_stock == 0:
-                    severity = "critical"
-                elif product_stock <= 3:
-                    severity = "critical"
-                elif product_stock <= 7:
-                    severity = "warning"
-                else:
-                    severity = "info"
-                
-                alert_events.inventory_low_sent(
-                    alert_id=alert_id,
-                    severity=severity,
-                    channel="discord",
-                    product_id=int(product_id),
-                    product_sku=product.get('sku', 'N/A'),
-                    product_name=product_name,
-                    current_qty=product_stock,
-                    threshold=threshold
-                )
-                logger.info(f"📝 Evento logeado: alert.inventory_low.sent [{alert_id}]")
-                # ======================================================
-                
-                # Email
-                send_email_alert(
-                    f"🚨 Stock Bajo: {product_name} ({product_stock} unidades)",
-                    [product],
-                    email_to=email_to,
-                    shop_name=shop_name
-                )
-                
-                # Discord
-                send_discord_alert(
-                    f"Stock Bajo: {product_name} ({product_stock} unidades)",
-                    [product],
-                    discord_url=discord_url,
-                    shop_name=shop_name
-                )
-                
-                # Google Sheets
-                send_to_google_sheets(
-                    f"Stock Bajo <= {threshold}",
-                    [product],
-                    sheet_id=sheet_id,
-                    shop_name=shop_name
-                )
-                
-                # Marcar como enviado
-                dedup.mark_sent(
-                    "low_stock",
-                    ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
-                    product_id=product_id,
-                    shop=shop_name
-                )
-                
-                alerts_sent += 1
-            else:
-                # ⏭️ Alerta duplicada
-                logger.info(f"⏭️  Alerta ignorada (duplicado): {product_name}")
-                alerts_skipped += 1
-        
-        return {
-            "triggered": alerts_sent > 0,
-            "count": len(low_stock),
-            "alerts_sent": alerts_sent,
-            "alerts_deduplicated": alerts_skipped,
-            "threshold": threshold,
-            "file": path,
-            "products": products[:10]
-        }
-
-    return {"triggered": False, "count": 0, "products": []}
+            )
+            
+            alerts_sent += 1
+        else:
+            alerts_skipped += 1
+    
+    return {
+        "triggered": alerts_sent > 0,
+        "count": len(low_stock_products),
+        "alerts_sent": alerts_sent,
+        "alerts_deduplicated": alerts_skipped,
+        "business_type": business_type,  # ← NUEVO
+        "thresholds": adapter.context,   # ← NUEVO
+        "file": path,
+        "products": low_stock_products[:10]
+    }
 
 def alert_no_sales(df: pd.DataFrame, days: int = None,
                   email_to: str = None, discord_url: str = None,
@@ -1132,7 +1175,7 @@ def alert_no_sales(df: pd.DataFrame, days: int = None,
         return {"triggered": False, "count": 0, "products": []}
     
     df_copy = df.copy()
-    df_copy['last_sold_date'] = pd.to_datetime(df_copy['last_sold_date'], errors='coerce')
+    df_copy.loc[:, 'last_sold_date'] = pd.to_datetime(df_copy['last_sold_date'], errors='coerce')
     threshold_date = pd.Timestamp.now() - pd.Timedelta(days=days)
     
     no_sales = df_copy[df_copy['last_sold_date'] < threshold_date]
@@ -1480,8 +1523,12 @@ def webhook_shopify():
             current_email = EMAIL_SENDER
             current_discord = DISCORD_WEBHOOK_URL
             current_sheet_id = GOOGLE_SHEET_ID
-            current_shop_name = "Development Store"  # ← NUEVO
-        
+            current_shop_name = "chaparrita-boots"  # ← NUEVO
+            client_config = {
+                'business_type': 'ecommerce',  # Default para simulación
+                'name': 'Simulation',
+                'shop_name': 'chaparrita-boots'
+            }
         # Obtener topic (tipo de evento)
         topic = request.headers.get('X-Shopify-Topic', 'simulation/test')
         shop_domain = request.headers.get('X-Shopify-Shop-Domain', 'localhost')
@@ -1610,18 +1657,26 @@ def webhook_shopify():
         
         # Ejecutar diagnósticos
         alerts = {
-            "low_stock": alert_low_stock(df, email_to=current_email, 
-                                        discord_url=current_discord, 
-                                        sheet_id=current_sheet_id,
-                                        shop_name=current_shop_name),
-            "no_sales": alert_no_sales(df, email_to=current_email,
-                                        discord_url=current_discord,
-                                        sheet_id=current_sheet_id,
-                                        shop_name=current_shop_name),
-            "missing_data": alert_missing_data(df, email_to=current_email,
-                                                discord_url=current_discord,
-                                                sheet_id=current_sheet_id,
-                                                shop_name=current_shop_name)
+            "low_stock": alert_low_stock(
+                df, 
+                email_to=current_email, 
+                discord_url=current_discord, 
+                sheet_id=current_sheet_id,
+                shop_name=current_shop_name,
+                business_type=client_config.get('business_type', 'ecommerce')  # ← NUEVA LÍNEA
+            ),
+            "no_sales": alert_no_sales(
+                df,
+                email_to=current_email,
+                discord_url=current_discord,
+                sheet_id=current_sheet_id,
+                shop_name=current_shop_name),
+            "missing_data": alert_missing_data(
+                df,
+                email_to=current_email,
+                discord_url=current_discord,
+                sheet_id=current_sheet_id,
+                shop_name=current_shop_name)
         }
         
         # Procesar datos
