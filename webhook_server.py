@@ -1342,6 +1342,7 @@ limiter = Limiter(
 
 @app.route('/health', methods=['GET'])
 def health_check():
+    # Test log visibility
     """
     Endpoint para verificar que el servidor está vivo.
     ✅ Mejora v2.5: Verifica dependencias críticas, no solo "server running"
