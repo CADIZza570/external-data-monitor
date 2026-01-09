@@ -382,26 +382,25 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
             
             if 'sku' in product and product['sku']:
                 productos_texto += f"├─ 🏷️ SKU: `{product['sku']}`\n"
-            
+                        
             # ============= NUEVO: ANALYTICS =============
-            if analytics_data or ('velocity' in product):
-                # Usar analytics del product si existe
-                analytics = analytics_data or product
-                
-                if 'velocity' in analytics:
+            # Los analytics están en product['analytics']
+            analytics = product.get('analytics')
+
+            if analytics:
+                if analytics.get('velocity') is not None:
                     productos_texto += f"├─ 📊 Velocidad: **{analytics['velocity']:.2f} unidades/día**\n"
                 
-                if 'days_until_stockout' in analytics:
+                if analytics.get('days_until_stockout'):
                     days = analytics['days_until_stockout']
-                    if days and days > 0:
+                    if days > 0:
                         productos_texto += f"├─ ⏱️ Se agota en: **{days:.0f} días**\n"
                 
-                if 'sales_last_30d' in analytics:
-                    productos_texto += f"├─ 📈 Vendidos (30d): **{analytics['sales_last_30d']} unidades**\n"
+                if analytics.get('units_sold_30d') is not None:
+                    productos_texto += f"├─ 📈 Vendidos (30d): **{analytics['units_sold_30d']} unidades**\n"
                 
-                if 'stockout_date' in analytics and analytics['stockout_date']:
+                if analytics.get('stockout_date'):
                     productos_texto += f"├─ 📅 Fecha estimada: **{analytics['stockout_date']}**\n"
-            # ============================================
             
             # Calcular valor en riesgo
             if 'price' in product and product['price']:
