@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)  # ← AGREGAR ESTA LÍNEA
 
 
 class ShopifyAnalytics:

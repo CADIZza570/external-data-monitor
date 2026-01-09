@@ -12,6 +12,7 @@ from shopify_analytics import ShopifyAnalytics
 import logging
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)  # ← AGREGAR ESTA LÍNEA
 
 
 class AnalyticsIntegrator:
