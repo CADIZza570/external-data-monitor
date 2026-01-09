@@ -83,10 +83,22 @@ class ShopifyAnalytics:
             print(f"   Parsing JSON response...")  # ← AGREGAR
             orders = response.json()['orders']
             print(f"   Total orders fetched: {len(orders)}")  # ← AGREGAR (ya debería estar)
-            
+
             # ============= NUEVO: LOG ORDERS COUNT =============
             logger.info(f"   Total orders fetched: {len(orders)}")
             # ===================================================
+            
+            # ============= NUEVO: DEBUG =============
+            if orders and len(orders) > 0:
+                # Ver estructura del primer order
+                first_order = orders[0]
+                if 'line_items' in first_order and len(first_order['line_items']) > 0:
+                    first_item = first_order['line_items'][0]
+                    print(f"   DEBUG first item keys: {list(first_item.keys())}")
+                    print(f"   DEBUG first item product_id: {first_item.get('product_id')}")
+                    print(f"   DEBUG first item variant_id: {first_item.get('variant_id')}")
+                    print(f"   DEBUG buscando product_id: {product_id}")
+            # ========================================
             
             # Filtrar órdenes que contienen este producto
             product_orders = []
