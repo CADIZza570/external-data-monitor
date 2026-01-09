@@ -60,6 +60,8 @@ class ShopifyAnalytics:
         }
         
         # ============= NUEVO: LOGS DETALLADOS =============
+        print(f"🔍 [SHOPIFY_API] Consultando para product_id={product_id}")  # ← AGREGAR
+        print(f"   URL: {url}")  # ← AGREGAR
         logger.info(f"🔍 Consultando Shopify API para product_id={product_id}")
         logger.info(f"   URL: {url}")
         logger.info(f"   Params: {params}")
@@ -69,6 +71,7 @@ class ShopifyAnalytics:
             response = requests.get(url, headers=self.headers, params=params, timeout=10)
             
             # ============= NUEVO: LOG RESPONSE =============
+            print(f"   Response status: {response.status_code}")  # ← AGREGAR
             logger.info(f"   Response status: {response.status_code}")
             # ===============================================
             

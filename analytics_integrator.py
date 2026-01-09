@@ -107,6 +107,7 @@ class AnalyticsIntegrator:
         logger.info(f"✅ Engine found for '{shop_name}'")
         
         try:
+            print(f"🔍 [ANALYTICS] Llamando analyze_product para product_id={product_data.get('product_id')}")  # ← AGREGAR
             # Análisis completo
             analysis = engine.analyze_product(
                 product_id=int(product_data.get('product_id', 0)),
@@ -114,6 +115,8 @@ class AnalyticsIntegrator:
                 product_name=product_data.get('name')
             )
             
+            print(f"✅ [ANALYTICS] analyze_product completado")  # ← AGREGAR
+
             # Agregar analytics al product_data
             product_data['analytics'] = {
                 'velocity': analysis['velocity']['velocity'],
@@ -130,6 +133,7 @@ class AnalyticsIntegrator:
                        f"Velocity: {product_data['analytics']['velocity']}/día")
             
         except Exception as e:
+            print(f"❌ [ANALYTICS] Error en analyze_product: {e}")  # ← AGREGAR
             logger.error(f"Error enriching alert with analytics: {e}")
             product_data['analytics'] = None
         
