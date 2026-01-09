@@ -2,7 +2,7 @@
 Shopify Inventory Analytics Engine
 Calcula velocity, predice stockouts, genera recomendaciones
 """
-
+import os
 import requests
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -58,14 +58,28 @@ class ShopifyAnalytics:
             "limit": 250  # Máximo por página
         }
         
+        # ============= NUEVO: LOGS DETALLADOS =============
+        logger.info(f"🔍 Consultando Shopify API para product_id={product_id}")
+        logger.info(f"   URL: {url}")
+        logger.info(f"   Params: {params}")
+        # ==================================================
+        
         try:
             response = requests.get(url, headers=self.headers, params=params, timeout=10)
             
+            # ============= NUEVO: LOG RESPONSE =============
+            logger.info(f"   Response status: {response.status_code}")
+            # ===============================================
+            
             if response.status_code != 200:
-                logger.error(f"Error fetching orders: {response.status_code}")
+                logger.error(f"❌ Error fetching orders: {response.status_code} - {response.text[:200]}")
                 return []
             
             orders = response.json()['orders']
+            
+            # ============= NUEVO: LOG ORDERS COUNT =============
+            logger.info(f"   Total orders fetched: {len(orders)}")
+            # ===================================================
             
             # Filtrar órdenes que contienen este producto
             product_orders = []
@@ -79,10 +93,17 @@ class ShopifyAnalytics:
                             'price': item['price']
                         })
             
+            # ============= NUEVO: LOG FILTERED ORDERS =============
+            logger.info(f"   Orders with product_id={product_id}: {len(product_orders)}")
+            if product_orders:
+                total_qty = sum(o['quantity'] for o in product_orders)
+                logger.info(f"   Total units sold: {total_qty}")
+            # ======================================================
+            
             return product_orders
             
         except Exception as e:
-            logger.error(f"Error getting sales history: {e}")
+            logger.error(f"❌ Error getting sales history: {e}")
             return []
     
     def calculate_velocity(self, product_id: int, days: int = 30) -> Dict:
