@@ -37,6 +37,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 import json
 
+from analytics_integrator import get_analytics_integrator
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -1011,12 +1013,15 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
     Returns:
         dict con información de la alerta
     """
-
-     # ============= NUEVO: Importar analytics =============
-    from analytics_integrator import get_analytics_integrator
-
-    analytics_integrator = get_analytics_integrator()
-    # ====================================================
+    
+    # ============= NUEVO: Con manejo de errores =============
+    try:
+        analytics_integrator = get_analytics_integrator()
+        logger.info(f"✅ Analytics integrator OK: {len(analytics_integrator.engines)} engines")
+    except Exception as e:
+        logger.error(f"❌ Analytics integrator FAILED: {e}")
+        analytics_integrator = None
+    # ========================================================
 
     # ============= NUEVO: Usar BusinessAdapter =============
     adapter = BusinessAdapter(business_type)
