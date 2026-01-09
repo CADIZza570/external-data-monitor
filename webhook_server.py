@@ -1013,7 +1013,7 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
     Returns:
         dict con información de la alerta
     """
-    
+
     # ============= NUEVO: Con manejo de errores =============
     try:
         analytics_integrator = get_analytics_integrator()
@@ -1080,12 +1080,23 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
     for product in low_stock_products[:10]:
         product_id = product.get('product_id')
         evaluation = product.get('evaluation')
-         
+
         # ============= NUEVO: Enriquecer con analytics =============
-        product = analytics_integrator.enrich_alert(product, shop_name)
-        analytics_msg = analytics_integrator.format_analytics_message(product)
-        # ===========================================================
-        
+        logger.info(f"🔍 Pre-enrich: product={product.get('name')}, analytics_integrator={'OK' if analytics_integrator else 'None'}")
+
+        if analytics_integrator:
+            try:
+                product = analytics_integrator.enrich_alert(product, shop_name)
+                analytics_msg = analytics_integrator.format_analytics_message(product)
+                logger.info(f"📊 Post-enrich: analytics={'YES' if product.get('analytics') else 'NO'}")
+            except Exception as e:
+                logger.error(f"❌ Error en enrich_alert: {e}")
+                analytics_msg = None
+        else:
+            logger.warning("⚠️ Analytics integrator is None, skipping enrichment")
+            analytics_msg = None
+        # =========================================================== 
+       
         # ✅ Agregar analytics al mensaje (si Discord está configurado)
         if analytics_msg:
             logger.info(f"📊 {analytics_msg.split(chr(10))[0]}")  # Log primera línea
