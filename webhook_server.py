@@ -557,7 +557,7 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
         
         # Información del cliente
         customer = order_data.get('customer') or {}
-        customer_name = f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
+        customer_name = f"{customer.get('first_name') or ''} {customer.get('last_name') or ''}".strip()
         customer_email = customer.get('email', 'No email')
         
         # ✅ NUEVO: Teléfono (intentar de customer primero, luego shipping)
@@ -567,7 +567,7 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
         currency = order_data.get('currency', 'USD')
         
         # ✅ NUEVO: Extraer notas del cliente
-        customer_note = order_data.get('note', '').strip()  # Nota general de la orden
+        customer_note = (order_data.get('note') or '').strip()
         note_attributes = order_data.get('note_attributes', [])  # Custom fields
         
         # Formatear notas adicionales (custom fields del checkout)
