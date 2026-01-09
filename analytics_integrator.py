@@ -92,15 +92,18 @@ class AnalyticsIntegrator:
         """
         Enriquece datos de alerta con analytics
         """
+        print(f"🔍 [ANALYTICS] enrich_alert called: shop_name='{shop_name}', product={product_data.get('name')}")  # ← AGREGAR
         logger.info(f"🔍 enrich_alert called: shop_name='{shop_name}', product={product_data.get('name')}")
         
         engine = self.get_engine(shop_name)
         
         if not engine:
+            print(f"⚠️ [ANALYTICS] No engine for shop_name='{shop_name}'")  # ← AGREGAR
             logger.warning(f"⚠️ No analytics engine for shop_name='{shop_name}'")
             logger.info(f"   Available engines: {list(self.engines.keys())}")
             return product_data
         
+        print(f"✅ [ANALYTICS] Engine found for '{shop_name}'")  # ← AGREGAR
         logger.info(f"✅ Engine found for '{shop_name}'")
         
         try:
