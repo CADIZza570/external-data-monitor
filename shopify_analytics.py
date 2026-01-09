@@ -76,10 +76,13 @@ class ShopifyAnalytics:
             # ===============================================
             
             if response.status_code != 200:
+                print(f"❌ Error status: {response.status_code} - {response.text[:200]}")  # ← AGREGAR
                 logger.error(f"❌ Error fetching orders: {response.status_code} - {response.text[:200]}")
                 return []
             
+            print(f"   Parsing JSON response...")  # ← AGREGAR
             orders = response.json()['orders']
+            print(f"   Total orders fetched: {len(orders)}")  # ← AGREGAR (ya debería estar)
             
             # ============= NUEVO: LOG ORDERS COUNT =============
             logger.info(f"   Total orders fetched: {len(orders)}")
