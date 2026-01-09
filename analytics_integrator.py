@@ -26,25 +26,34 @@ class AnalyticsIntegrator:
     
     def _initialize_engines(self):
         """Crea analytics engine para cada cliente configurado"""
-
+        logger.info("🔧 Inicializando analytics engines...")
+        
         # Chaparrita
         chaparrita_token = os.getenv('SHOPIFY_ACCESS_TOKEN_CHAPARRITA')
+        logger.info(f"   SHOPIFY_ACCESS_TOKEN_CHAPARRITA: {'SET' if chaparrita_token else 'NOT SET'}")
+        
         if chaparrita_token:
             self.engines['chaparrita-boots'] = ShopifyAnalytics(
                 shop_name='chaparrita-boots',
                 access_token=chaparrita_token
             )
-            logger.info("✅ Analytics engine creado: Chaparrita")
+            logger.info("✅ Analytics engine creado: chaparrita-boots")
+        else:
+            logger.warning("⚠️ No se pudo crear engine para chaparrita-boots (token faltante)")
         
         # DEV
         dev_token = os.getenv('SHOPIFY_ACCESS_TOKEN_DEV')
+        logger.info(f"   SHOPIFY_ACCESS_TOKEN_DEV: {'SET' if dev_token else 'NOT SET'}")
+        
         if dev_token:
             self.engines['connie-dev-studio'] = ShopifyAnalytics(
                 shop_name='connie-dev-studio',
                 access_token=dev_token
             )
-            logger.info("✅ Analytics engine creado: DEV")
-    
+            logger.info("✅ Analytics engine creado: connie-dev-studio")
+        
+        logger.info(f"🔧 Total engines creados: {len(self.engines)}")
+        
     def get_engine(self, shop_name: str) -> ShopifyAnalytics:
         """
         Obtiene analytics engine para una tienda
@@ -77,23 +86,21 @@ class AnalyticsIntegrator:
         # Log de debug
         print(f"No analytics engine for {shop_name}")
         return None
-        
+
     def enrich_alert(self, product_data: dict, shop_name: str) -> dict:
         """
         Enriquece datos de alerta con analytics
-        
-        Args:
-            product_data: Dict con product_id, name, stock, etc.
-            shop_name: Nombre de la tienda
-        
-        Returns:
-            product_data enriquecido con analytics
         """
+        logger.info(f"🔍 enrich_alert called: shop_name='{shop_name}', product={product_data.get('name')}")
+        
         engine = self.get_engine(shop_name)
         
         if not engine:
-            logger.warning(f"No analytics engine for {shop_name}")
+            logger.warning(f"⚠️ No analytics engine for shop_name='{shop_name}'")
+            logger.info(f"   Available engines: {list(self.engines.keys())}")
             return product_data
+        
+        logger.info(f"✅ Engine found for '{shop_name}'")
         
         try:
             # Análisis completo
