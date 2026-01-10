@@ -87,7 +87,7 @@ class ShopifyAnalytics:
             # ============= NUEVO: LOG ORDERS COUNT =============
             logger.info(f"   Total orders fetched: {len(orders)}")
             # ===================================================
-            
+
             # ============= NUEVO: DEBUG =============
             if orders and len(orders) > 0:
                 # Ver estructura del primer order
@@ -291,11 +291,12 @@ class ShopifyAnalytics:
                 'reason': f'Stock suficiente ({days_until_stockout:.0f} días)',
                 'urgency': 'ok'
             }
-    
+        
     def analyze_product(self, product_id: int, current_stock: int,
-                       product_name: str = None) -> Dict:
+                    product_name: str = None) -> Dict:
         """
         Análisis completo de un producto
+        ✅ OPTIMIZADO v2.0: Una sola llamada a Shopify API
         
         Args:
             product_id: ID del producto
@@ -305,14 +306,125 @@ class ShopifyAnalytics:
         Returns:
             dict con análisis completo
         """
-        # Velocity
-        velocity_data = self.calculate_velocity(product_id, days=30)
+        # ============= OPTIMIZACIÓN: UNA SOLA LLAMADA API =============
+        # En vez de llamar 3 veces, obtenemos sales history una vez
+        sales = self.get_product_sales_history(product_id, days=30)
         
-        # Stockout prediction
-        stockout = self.predict_stockout(product_id, current_stock)
+        # Calcular velocity (sin llamar API de nuevo)
+        if not sales:
+            velocity_data = {
+                'velocity': 0.0,
+                'units_sold': 0,
+                'days_analyzed': 30,
+                'confidence': 'low',
+                'has_data': False
+            }
+        else:
+            total_units = sum(sale['quantity'] for sale in sales)
+            velocity = total_units / 30
+            
+            if len(sales) >= 10:
+                confidence = 'high'
+            elif len(sales) >= 5:
+                confidence = 'medium'
+            else:
+                confidence = 'low'
+            
+            velocity_data = {
+                'velocity': round(velocity, 2),
+                'units_sold': total_units,
+                'days_analyzed': 30,
+                'orders_count': len(sales),
+                'confidence': confidence,
+                'has_data': True
+            }
         
-        # Reorder recommendation
-        reorder = self.generate_reorder_recommendation(product_id, current_stock)
+        # Stockout prediction (usando velocity ya calculado)
+        velocity = velocity_data['velocity']
+        
+        if velocity == 0 or not velocity_data['has_data']:
+            stockout = {
+                'days_until_stockout': None,
+                'stockout_date': None,
+                'urgency': 'unknown',
+                'velocity': 0.0,
+                'confidence': 'low',
+                'message': 'Sin datos de ventas para predecir',
+                'units_sold_30d': 0,
+                'orders_count': 0
+            }
+        else:
+            days_until_stockout = current_stock / velocity
+            stockout_date = datetime.now() + timedelta(days=days_until_stockout)
+            
+            if days_until_stockout < 0:
+                urgency = 'critical'
+                message = 'Stock por debajo de safety stock'
+            elif days_until_stockout <= 7:
+                urgency = 'critical'
+                message = f'Se agota en {days_until_stockout:.1f} días'
+            elif days_until_stockout <= 14:
+                urgency = 'warning'
+                message = f'Se agota en {days_until_stockout:.1f} días'
+            elif days_until_stockout <= 28:
+                urgency = 'watch'
+                message = f'Se agota en {days_until_stockout:.1f} días'
+            else:
+                urgency = 'ok'
+                message = f'Stock suficiente ({days_until_stockout:.0f} días)'
+            
+            stockout = {
+                'days_until_stockout': round(days_until_stockout, 1),
+                'stockout_date': stockout_date.strftime('%Y-%m-%d'),
+                'urgency': urgency,
+                'velocity': velocity,
+                'confidence': velocity_data['confidence'],
+                'message': message,
+                'units_sold_30d': velocity_data['units_sold'],
+                'orders_count': velocity_data['orders_count']
+            }
+        
+        # Reorder recommendation (usando datos ya calculados)
+        lead_time_days = 7
+        
+        if not stockout['days_until_stockout']:
+            reorder = {
+                'should_reorder': False,
+                'recommended_quantity': 0,
+                'reason': 'Sin datos suficientes para recomendar'
+            }
+        else:
+            days_until_stockout = stockout['days_until_stockout']
+            should_reorder = days_until_stockout <= lead_time_days * 1.5
+            
+            if should_reorder:
+                demand_30d = velocity * 30
+                lead_time_buffer = velocity * lead_time_days
+                safety_buffer = demand_30d * 0.2
+                
+                recommended_quantity = int(demand_30d + lead_time_buffer + safety_buffer)
+                recommended_quantity = ((recommended_quantity + 4) // 5) * 5
+                
+                reorder = {
+                    'should_reorder': True,
+                    'recommended_quantity': recommended_quantity,
+                    'reason': f'Stock se agota en {days_until_stockout:.1f} días',
+                    'urgency': stockout['urgency'],
+                    'breakdown': {
+                        'demand_30d': int(demand_30d),
+                        'lead_time_buffer': int(lead_time_buffer),
+                        'safety_buffer': int(safety_buffer)
+                    }
+                }
+            else:
+                reorder = {
+                    'should_reorder': False,
+                    'recommended_quantity': 0,
+                    'reason': f'Stock suficiente ({days_until_stockout:.0f} días)',
+                    'urgency': 'ok'
+                }
+        
+        # ===============================================================
         
         return {
             'product_id': product_id,
@@ -323,7 +435,6 @@ class ShopifyAnalytics:
             'reorder_recommendation': reorder,
             'analyzed_at': datetime.now().isoformat()
         }
-
 
 # ============================================================================
 # EJEMPLO DE USO
