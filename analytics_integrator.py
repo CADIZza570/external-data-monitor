@@ -85,29 +85,24 @@ class AnalyticsIntegrator:
             return self.engines.get(mapped_name)
         
         # Log de debug
-        print(f"No analytics engine for {shop_name}")
         return None
 
     def enrich_alert(self, product_data: dict, shop_name: str) -> dict:
         """
         Enriquece datos de alerta con analytics
         """
-        print(f"🔍 [ANALYTICS] enrich_alert called: shop_name='{shop_name}', product={product_data.get('name')}")  # ← AGREGAR
         logger.info(f"🔍 enrich_alert called: shop_name='{shop_name}', product={product_data.get('name')}")
         
         engine = self.get_engine(shop_name)
         
         if not engine:
-            print(f"⚠️ [ANALYTICS] No engine for shop_name='{shop_name}'")  # ← AGREGAR
             logger.warning(f"⚠️ No analytics engine for shop_name='{shop_name}'")
             logger.info(f"   Available engines: {list(self.engines.keys())}")
             return product_data
         
-        print(f"✅ [ANALYTICS] Engine found for '{shop_name}'")  # ← AGREGAR
         logger.info(f"✅ Engine found for '{shop_name}'")
         
         try:
-            print(f"🔍 [ANALYTICS] Llamando analyze_product para product_id={product_data.get('product_id')}")  # ← AGREGAR
             # Análisis completo
             analysis = engine.analyze_product(
                 product_id=int(product_data.get('product_id', 0)),
@@ -115,7 +110,6 @@ class AnalyticsIntegrator:
                 product_name=product_data.get('name')
             )
             
-            print(f"✅ [ANALYTICS] analyze_product completado")  # ← AGREGAR
 
             # Agregar analytics al product_data
             product_data['analytics'] = {
@@ -133,7 +127,6 @@ class AnalyticsIntegrator:
                        f"Velocity: {product_data['analytics']['velocity']}/día")
             
         except Exception as e:
-            print(f"❌ [ANALYTICS] Error en analyze_product: {e}")  # ← AGREGAR
             logger.error(f"Error enriching alert with analytics: {e}")
             product_data['analytics'] = None
         
