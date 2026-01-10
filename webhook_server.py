@@ -1614,13 +1614,17 @@ def webhook_shopify():
         
         # Formato webhook real de Shopify (producto individual)
         elif "id" in payload and "variants" in payload:
+            product_id_real = payload.get("id")  # ← AGREGAR: El product_id viene del payload principal
+
             for variant in payload.get("variants", []):
                 rows.append({
-                    "product_id": variant.get("id"),
+                    "product_id": product_id_real,
+                    "variant_id": variant.get("id"),  # ← AGREGAR: Guardar variant_id por separado
                     "name": f"{payload.get('title')} - {variant.get('title')}",
                     "stock": variant.get("inventory_quantity"),
                     "last_sold_date": None,
-                    "sku": variant.get("sku")  # ← AÑADIDO
+                    "sku": variant.get("sku"),  # ← AÑADIDO
+                    "price": variant.get("price")  # ← AGREGAR: Precio de la variante
                 })
         
         # Formato webhook de orden
