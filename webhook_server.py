@@ -2130,6 +2130,62 @@ def dedup_cleanup():
         "message": f"Cache cleared: {count} alerts removed"
     }), 200
 
+# ============================================================
+# 🔌 TENANT REGISTRATION ENDPOINT (SHOPIFY APP INTEGRATION)
+# ============================================================
+@app.route('/register-tenant', methods=['POST'])
+def register_tenant():
+    """
+    Endpoint para registrar nuevos tenants cuando instalan la app
+    Llamado desde Node.js OAuth callback
+    """
+    try:
+        data = request.get_json()
+        
+        # Validar datos requeridos
+        required_fields = ['shop', 'access_token', 'scope']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'error': f'Missing required field: {field}'
+                }), 400
+        
+        shop = data['shop']
+        access_token = data['access_token']
+        scope = data['scope']
+        
+        logger.info(f"📥 Registering new tenant: {shop}")
+        
+        # TODO: Guardar en base de datos
+        # Por ahora, solo logueamos
+        tenant_info = {
+            'shop': shop,
+            'scopes': scope.split(','),
+            'registered_at': datetime.now().isoformat(),
+        }
+        
+        logger.info(f"✅ Tenant registered successfully: {shop}")
+        logger.info(f"   Scopes: {scope}")
+        
+        return jsonify({
+            'success': True,
+            'tenant': tenant_info
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"❌ Error registering tenant: {e}")
+        return jsonify({
+            'error': 'Registration failed',
+            'message': str(e)
+        }), 500
+
+@app.route('/tenants', methods=['GET'])
+def list_tenants():
+    """Endpoint para listar tenants (por ahora retorna info básica)"""
+    return jsonify({
+        'message': 'Tenant management endpoint',
+        'tenants': []  # TODO: Conectar con BD
+    }), 200
 
 # ============================================================
 # 🚀 ENTRY POINT 
