@@ -2188,6 +2188,35 @@ def list_tenants():
     }), 200
 
 # ============================================================
+# 📊 DASHBOARD API (Para UI de Node.js)
+# ============================================================
+@app.route('/api/dashboard/<shop>', methods=['GET'])
+def get_dashboard_data(shop):
+    """
+    Endpoint para obtener datos del dashboard
+    Llamado desde Node.js UI
+    """
+    try:
+        # TODO: Obtener datos reales de base de datos
+        # Por ahora, retornar datos de ejemplo
+        
+        dashboard_data = {
+            'shop': shop,
+            'products_monitored': 0,
+            'low_stock_products': 0,
+            'average_velocity': 0.0,
+            'recent_alerts': []
+        }
+        
+        logger.info(f"📊 Dashboard data requested for: {shop}")
+        
+        return jsonify(dashboard_data), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting dashboard data: {e}")
+        return jsonify({'error': str(e)}), 500
+                
+# ============================================================
 # 🚀 ENTRY POINT 
 # ============================================================
 
