@@ -71,3 +71,18 @@ leads_web.xlsx
 
 # Carpeta duplicada (no usar)
 tu_proyecto/tu_proyecto/
+
+# Archivos de testing local (pueden contener secretos)
+test_*.py
+simulate_*.py
+*_backup.py
+*.save
+
+# Archivos temporales
+=
+event_summary.txt
+sync.sh
+
+# Logs (ya deberían estar ignorados, pero por si acaso)
+logs/
+tu_proyecto/config.py
