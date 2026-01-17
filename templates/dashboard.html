@@ -1050,11 +1050,12 @@
         // ========================================
         // CARGAR PRODUCTOS CRÍTICOS
         // ========================================
+
         async function loadCriticalProducts() {
             try {
-                // Intentar cargar datos reales desde el endpoint
+                // Cargar productos reales desde el endpoint de la base de datos
                 const response = await fetch(
-                    `${CONFIG.API_BASE}/webhooks/history?limit=100`
+                    `${CONFIG.API_BASE}/api/products/critical`
                 );
                 
                 if (!response.ok) {
@@ -1063,31 +1064,17 @@
                 
                 const data = await response.json();
                 
-                if (data.status === 'success') {
-                    // Procesar webhooks para extraer productos con alertas
-                    const products = [];
-                    
-                    data.webhooks.forEach(wh => {
-                        if (wh.alerts && wh.alerts.low_stock_count > 0) {
-                            // Aquí integrarías con tu sistema de analytics real
-                            // Por ahora, procesamos los datos disponibles
-                            const count = wh.alerts.low_stock_count;
-                            
-                            // Simulamos extracción de productos desde el webhook
-                            // En producción, esto vendría de una tabla de productos
-                            for (let i = 0; i < Math.min(count, 2); i++) {
-                                products.push({
-                                    name: `Producto #${i + 1}`,
-                                    sku: `SKU-${wh.shop ? wh.shop.substring(0, 3) : 'UNK'}-${1000 + i}`,
-                                    stock: Math.floor(Math.random() * 5) + (i === 0 ? 0 : 1),
-                                    velocity: (Math.random() * 2 + 0.5).toFixed(2),
-                                    daysToStockout: Math.floor(Math.random() * 7) + 1,
-                                    status: i === 0 ? 'critical' : 'warning',
-                                    shop: wh.shop
-                                });
-                            }
-                        }
-                    });
+                if (data.status === 'success' && data.products.length > 0) {
+                    // Usar productos reales de la base de datos
+                    const products = data.products.map(p => ({
+                        name: p.name,
+                        sku: p.sku,
+                        stock: p.stock,
+                        velocity: (Math.random() * 2 + 0.5).toFixed(2), // Temporal hasta que haya analytics real
+                        daysToStockout: p.stock === 0 ? 0 : Math.max(1, Math.floor(7 / Math.max(p.stock, 1))),
+                        status: p.status,
+                        shop: p.shop
+                    }));
                     
                     criticalProducts = products;
                     renderCriticalTable(products);
@@ -1096,7 +1083,8 @@
                     return products;
                 }
                 
-                throw new Error('Invalid response format');
+                // Si no hay productos, usar fallback
+                throw new Error('No products found');
                 
             } catch (error) {
                 console.error('❌ Error loading critical products:', error);
