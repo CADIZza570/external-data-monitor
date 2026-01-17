@@ -2217,6 +2217,35 @@ def get_dashboard_data(shop):
         return jsonify({'error': str(e)}), 500
                 
 # ============================================================
+# 📊 DASHBOARD WEB INTERFACE
+# ============================================================
+
+@app.route('/dashboard')
+def dashboard():
+    """
+    Dashboard visual premium para monitoreo.
+    """
+    try:
+        with open('templates/dashboard.html', 'r', encoding='utf-8') as f:
+            return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+    except FileNotFoundError:
+        logger.error("Dashboard HTML no encontrado")
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head><title>Error</title></head>
+        <body style="font-family: Arial; padding: 40px; text-align: center;">
+            <h1>⚠️ Dashboard no encontrado</h1>
+            <p>El archivo templates/dashboard.html no existe.</p>
+            <a href="/" style="color: #667eea;">← Volver al inicio</a>
+        </body>
+        </html>
+        """, 404
+    except Exception as e:
+        logger.error(f"Error cargando dashboard: {e}")
+        return f"<h1>Error interno</h1><p>{str(e)}</p>", 500
+
+# ============================================================
 # 🚀 ENTRY POINT 
 # ============================================================
 
