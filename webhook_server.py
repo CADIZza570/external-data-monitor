@@ -2246,6 +2246,106 @@ def dashboard():
         return f"<h1>Error interno</h1><p>{str(e)}</p>", 500
 
 # ============================================================
+# 📦 ENDPOINTS DE PRODUCTOS (PARA EL DASHBOARD)
+# ============================================================
+
+@app.route('/api/products', methods=['GET'])
+def get_products():
+    """
+    Devuelve todos los productos con su stock actual.
+    Usa la información de los webhooks para construir el inventario.
+    """
+    try:
+        from database import get_db_connection
+        
+        conn = get_db_connection()
+        products = conn.execute('''
+            SELECT DISTINCT 
+                p.id,
+                p.product_id,
+                p.name,
+                p.sku,
+                p.stock,
+                p.price,
+                p.shop,
+                p.last_updated,
+                CASE 
+                    WHEN p.stock = 0 THEN 'critical'
+                    WHEN p.stock <= 5 THEN 'warning'
+                    ELSE 'ok'
+                END as status
+            FROM products p
+            ORDER BY p.stock ASC, p.last_updated DESC
+        ''').fetchall()
+        
+        conn.close()
+        
+        # Convertir a lista de dicts
+        product_list = [dict(row) for row in products]
+        
+        return jsonify({
+            "status": "success",
+            "count": len(product_list),
+            "products": product_list
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo productos: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "products": []
+        }), 500
+
+
+@app.route('/api/products/critical', methods=['GET'])
+def get_critical_products():
+    """
+    Devuelve solo productos con stock bajo o agotados.
+    """
+    try:
+        from database import get_db_connection
+        
+        conn = get_db_connection()
+        products = conn.execute('''
+            SELECT 
+                p.id,
+                p.product_id,
+                p.name,
+                p.sku,
+                p.stock,
+                p.price,
+                p.shop,
+                p.last_updated,
+                CASE 
+                    WHEN p.stock = 0 THEN 'critical'
+                    WHEN p.stock <= 5 THEN 'warning'
+                    ELSE 'ok'
+                END as status
+            FROM products p
+            WHERE p.stock <= 5
+            ORDER BY p.stock ASC
+        ''').fetchall()
+        
+        conn.close()
+        
+        product_list = [dict(row) for row in products]
+        
+        return jsonify({
+            "status": "success",
+            "count": len(product_list),
+            "products": product_list
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo productos críticos: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "products": []
+        }), 500
+
+# ============================================================
 # 🚀 ENTRY POINT 
 # ============================================================
 
