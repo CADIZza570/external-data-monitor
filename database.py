@@ -48,11 +48,42 @@ def init_database():
             received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
+
+    # ============= NUEVO: Crear tabla products =============
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            sku TEXT,
+            stock INTEGER DEFAULT 0,
+            price REAL,
+            shop TEXT,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(product_id, shop)
+        )
+    ''')
+    # =======================================================    
+
     conn.commit()
     conn.close()
     print(f"✅ Base de datos inicializada: {DB_FILE}")
 
+# ============================================================
+# FUNCIÓN DE CONEXIÓN
+# ============================================================
+
+def get_db_connection():
+    """
+    Crea y retorna una conexión a la base de datos.
+    Configura row_factory para retornar diccionarios.
+    
+    Returns:
+        sqlite3.Connection con row_factory configurado
+    """
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 # ============================================================
 # FUNCIONES CRUD (Create, Read, Update, Delete)
@@ -236,6 +267,45 @@ def get_recent_webhooks(hours=24):
         print(f"❌ Error obteniendo webhooks recientes: {e}")
         return []
 
+# ============================================================
+# FUNCIONES PARA TABLA PRODUCTS
+# ============================================================
+
+def save_product(product_id, name, sku, stock, price, shop):
+    """
+    Guarda o actualiza un producto en la tabla products.
+    Usa UPSERT (INSERT ON CONFLICT) para actualizar si ya existe.
+    
+    Args:
+        product_id: ID del producto (variant_id de Shopify)
+        name: Nombre del producto + variante
+        sku: SKU del producto
+        stock: Cantidad en inventario
+        price: Precio del producto
+        shop: Dominio de la tienda
+    
+    Returns:
+        True si se guardó exitosamente, False si hubo error
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.execute('''
+            INSERT INTO products (product_id, name, sku, stock, price, shop, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(product_id, shop) 
+            DO UPDATE SET 
+                name = excluded.name,
+                sku = excluded.sku,
+                stock = excluded.stock,
+                price = excluded.price,
+                last_updated = CURRENT_TIMESTAMP
+        ''', (product_id, name, sku, stock, price, shop))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"❌ Error guardando producto {product_id}: {e}")
+        return False
 
 # ============================================================
 # AUTO-INICIALIZACIÓN
