@@ -34,6 +34,24 @@ def migrate_database():
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
 
+        # ============= PASO 0: Crear tabla products si no existe =============
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                sku TEXT,
+                stock INTEGER DEFAULT 0,
+                price REAL,
+                shop TEXT,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(product_id, shop)
+            )
+        ''')
+        conn.commit()
+        print("✅ Tabla 'products' verificada/creada")
+        # ====================================================================
+
         # Lista de columnas a agregar
         migrations = [
             ("cost_price", "REAL DEFAULT 0", "Costo de adquisición"),
