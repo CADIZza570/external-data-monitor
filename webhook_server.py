@@ -2260,19 +2260,25 @@ def get_products():
         
         conn = get_db_connection()
         products = conn.execute('''
-            SELECT DISTINCT 
-                id as product_id,
-                payload->>'$.title' as name,
-                payload->>'$.variants[0].sku' as sku,
-                CAST(payload->>'$.variants[0].inventory_quantity' as INTEGER) as stock,
-                CAST(payload->>'$.variants[0].price' as REAL) as price,
+            SELECT  
+                id,
+                product_id,
+                name,
+                sku,
+                stock,
+                price,
                 shop,
-                received_at as last_updated
-            FROM webhooks 
-            WHERE topic = 'products/update'
-            ORDER BY received_at DESC                  
+                last_updated,
+                CASE 
+                    WHEN stock = 5 THEN 'critical'
+                    WHEN stock <= 10 THEN 'warning'
+                    ELSE 'ok'
+                END as status
+            FROM products 
+            ORDER BY stock ASC, last_updated DESC
+                
         ''').fetchall()
-        
+
         # DEBUG: Ver qué devuelve la consulta
         logger.info(f"🔍 DEBUG get_products: Found {len(products)} products")
         if products:
