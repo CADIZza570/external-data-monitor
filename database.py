@@ -278,11 +278,55 @@ def get_recent_webhooks(hours=24):
 # FUNCIONES PARA TABLA PRODUCTS
 # ============================================================
 
-def save_product(product_id, name, sku, stock, price, shop):
+def calculate_velocity_and_category(sku, total_sales_30d=None):
+    """
+    Calcula velocity_daily y category automáticamente basado en historial.
+
+    Args:
+        sku: SKU del producto
+        total_sales_30d: Ventas de últimos 30 días (si ya se conoce)
+
+    Returns:
+        tuple: (velocity_daily, category)
+    """
+    # Si no hay datos de ventas, calcular desde orders_history
+    if total_sales_30d is None:
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            result = conn.execute('''
+                SELECT SUM(quantity) as total_sales
+                FROM orders_history
+                WHERE sku = ?
+                  AND order_date >= datetime('now', '-30 days')
+            ''', (sku,)).fetchone()
+            conn.close()
+
+            total_sales_30d = result[0] if result and result[0] else 0
+        except:
+            total_sales_30d = 0
+
+    # Calcular velocity (ventas por día)
+    velocity_daily = round(total_sales_30d / 30.0, 2) if total_sales_30d > 0 else 0
+
+    # Clasificar en categoría ABC basado en velocity
+    # A: Alta rotación (>= 2 unidades/día)
+    # B: Rotación media (>= 0.5 y < 2 unidades/día)
+    # C: Baja rotación (< 0.5 unidades/día)
+    if velocity_daily >= 2.0:
+        category = 'A'
+    elif velocity_daily >= 0.5:
+        category = 'B'
+    else:
+        category = 'C'
+
+    return velocity_daily, category
+
+def save_product(product_id, name, sku, stock, price, shop, cost_price=None,
+                 total_sales_30d=None, velocity_daily=None, category=None):
     """
     Guarda o actualiza un producto en la tabla products.
     Usa UPSERT (INSERT ON CONFLICT) para actualizar si ya existe.
-    
+
     Args:
         product_id: ID del producto (variant_id de Shopify)
         name: Nombre del producto + variante
@@ -290,23 +334,50 @@ def save_product(product_id, name, sku, stock, price, shop):
         stock: Cantidad en inventario
         price: Precio del producto
         shop: Dominio de la tienda
-    
+        cost_price: Costo de adquisición (opcional, para Cash Flow)
+        total_sales_30d: Total de ventas en últimos 30 días (opcional)
+        velocity_daily: Velocidad de ventas diaria (opcional)
+        category: Clasificación ABC (opcional: A, B, C)
+
     Returns:
         True si se guardó exitosamente, False si hubo error
     """
     try:
+        # Auto-calcular velocity y category si no se proporcionan
+        if velocity_daily is None or category is None:
+            calc_velocity, calc_category = calculate_velocity_and_category(sku, total_sales_30d)
+            if velocity_daily is None:
+                velocity_daily = calc_velocity
+            if category is None:
+                category = calc_category
+
         conn = sqlite3.connect(DB_FILE)
+
+        # Si hay ventas recientes, actualizar last_sale_date
+        # Si total_sales_30d > 0, asumimos que hubo venta hoy
+        last_sale_date = datetime.now().isoformat() if total_sales_30d and total_sales_30d > 0 else None
+
         conn.execute('''
-            INSERT INTO products (product_id, name, sku, stock, price, shop, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(product_id, shop) 
-            DO UPDATE SET 
+            INSERT INTO products (
+                product_id, name, sku, stock, price, shop, last_updated,
+                cost_price, last_sale_date, total_sales_30d, velocity_daily, category
+            )
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)
+            ON CONFLICT(product_id, shop)
+            DO UPDATE SET
                 name = excluded.name,
                 sku = excluded.sku,
                 stock = excluded.stock,
                 price = excluded.price,
+                cost_price = COALESCE(excluded.cost_price, cost_price),
+                last_sale_date = COALESCE(excluded.last_sale_date, last_sale_date),
+                total_sales_30d = COALESCE(excluded.total_sales_30d, total_sales_30d),
+                velocity_daily = COALESCE(excluded.velocity_daily, velocity_daily),
+                category = COALESCE(excluded.category, category),
                 last_updated = CURRENT_TIMESTAMP
-        ''', (product_id, name, sku, stock, price, shop))
+        ''', (product_id, name, sku, stock, price, shop,
+              cost_price, last_sale_date, total_sales_30d, velocity_daily, category))
+
         conn.commit()
         conn.close()
         return True

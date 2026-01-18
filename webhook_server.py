@@ -2293,7 +2293,7 @@ def get_products():
         
         conn = get_db_connection()
         products = conn.execute('''
-            SELECT  
+            SELECT
                 id,
                 product_id,
                 name,
@@ -2302,14 +2302,40 @@ def get_products():
                 price,
                 shop,
                 last_updated,
-                CASE 
-                    WHEN stock = 5 THEN 'critical'
+                -- ✅ NUEVAS COLUMNAS CASH FLOW
+                cost_price,
+                last_sale_date,
+                total_sales_30d,
+                category,
+                velocity_daily,
+                -- Calcular margen de ganancia
+                CASE
+                    WHEN cost_price > 0 THEN
+                        ROUND(((price - cost_price) / price) * 100, 2)
+                    ELSE NULL
+                END as margin_percent,
+                -- Calcular días desde última venta
+                CASE
+                    WHEN last_sale_date IS NOT NULL THEN
+                        CAST((julianday('now') - julianday(last_sale_date)) AS INTEGER)
+                    ELSE NULL
+                END as days_since_sale,
+                -- Calcular días hasta stockout (basado en velocity)
+                CASE
+                    WHEN velocity_daily > 0 THEN
+                        CAST(stock / velocity_daily AS INTEGER)
+                    ELSE NULL
+                END as days_to_stockout,
+                -- Status mejorado
+                CASE
+                    WHEN stock = 0 THEN 'out_of_stock'
+                    WHEN stock <= 5 THEN 'critical'
                     WHEN stock <= 10 THEN 'warning'
                     ELSE 'ok'
                 END as status
-            FROM products 
+            FROM products
             ORDER BY stock ASC, last_updated DESC
-                
+
         ''').fetchall()
 
         # DEBUG: Ver qué devuelve la consulta
@@ -2347,18 +2373,50 @@ def get_critical_products():
         
         conn = get_db_connection()
         products = conn.execute('''
-            SELECT DISTINCT 
-                id as product_id,
-                payload->>'$.title' as name,
-                payload->>'$.variants[0].sku' as sku,
-                CAST(payload->>'$.variants[0].inventory_quantity' as INTEGER) as stock,
-                CAST(payload->>'$.variants[0].price' as REAL) as price,
+            SELECT
+                id,
+                product_id,
+                name,
+                sku,
+                stock,
+                price,
                 shop,
-                received_at as last_updated
-            FROM webhooks 
-            WHERE topic = 'products/update'
-                AND CAST(payload->>'$.variants[0].inventory_quantity' as INTEGER) <= 5
-            ORDER BY stock ASC, received_at DESC                    
+                last_updated,
+                -- ✅ COLUMNAS CASH FLOW
+                cost_price,
+                last_sale_date,
+                total_sales_30d,
+                category,
+                velocity_daily,
+                -- Margen de ganancia
+                CASE
+                    WHEN cost_price > 0 THEN
+                        ROUND(((price - cost_price) / price) * 100, 2)
+                    ELSE NULL
+                END as margin_percent,
+                -- Días desde última venta
+                CASE
+                    WHEN last_sale_date IS NOT NULL THEN
+                        CAST((julianday('now') - julianday(last_sale_date)) AS INTEGER)
+                    ELSE NULL
+                END as days_since_sale,
+                -- Días hasta stockout (basado en velocity)
+                CASE
+                    WHEN velocity_daily > 0 THEN
+                        CAST(stock / velocity_daily AS INTEGER)
+                    ELSE NULL
+                END as days_to_stockout,
+                -- Status
+                CASE
+                    WHEN stock = 0 THEN 'out_of_stock'
+                    WHEN stock <= 5 THEN 'critical'
+                    WHEN stock <= 10 THEN 'warning'
+                    ELSE 'ok'
+                END as status
+            FROM products
+            WHERE stock <= 5
+            ORDER BY stock ASC, days_to_stockout ASC, last_updated DESC
+
         ''').fetchall()
         
         conn.close()
@@ -2378,7 +2436,350 @@ def get_critical_products():
             "message": str(e),
             "products": []
         }), 500
-    
+
+
+@app.route('/api/products/abc', methods=['GET'])
+def get_abc_classification():
+    """
+    Clasificación ABC de productos basada en ventas y valor.
+
+    Categoría A: 20% productos → 80% del valor (alta rotación, alto valor)
+    Categoría B: 30% productos → 15% del valor (rotación media)
+    Categoría C: 50% productos → 5% del valor (baja rotación, bajo valor)
+    """
+    try:
+        from database import get_db_connection
+
+        conn = get_db_connection()
+
+        # Obtener productos con su categoría ABC
+        products = conn.execute('''
+            SELECT
+                id,
+                product_id,
+                name,
+                sku,
+                stock,
+                price,
+                cost_price,
+                total_sales_30d,
+                velocity_daily,
+                category,
+                shop,
+                last_updated,
+                -- Valor total de ventas
+                ROUND(total_sales_30d * price, 2) as total_sales_value,
+                -- Margen
+                CASE
+                    WHEN cost_price > 0 THEN
+                        ROUND(((price - cost_price) / price) * 100, 2)
+                    ELSE NULL
+                END as margin_percent
+            FROM products
+            WHERE category IS NOT NULL
+            ORDER BY
+                CASE category
+                    WHEN 'A' THEN 1
+                    WHEN 'B' THEN 2
+                    WHEN 'C' THEN 3
+                    ELSE 4
+                END,
+                total_sales_30d DESC
+        ''').fetchall()
+
+        conn.close()
+
+        # Agrupar por categoría
+        abc_data = {'A': [], 'B': [], 'C': []}
+        stats = {'A': 0, 'B': 0, 'C': 0}
+
+        for product in products:
+            product_dict = dict(product)
+            cat = product_dict.get('category', 'C')
+            if cat in abc_data:
+                abc_data[cat].append(product_dict)
+                stats[cat] += 1
+
+        return jsonify({
+            "status": "success",
+            "classification": abc_data,
+            "stats": {
+                "category_A": stats['A'],
+                "category_B": stats['B'],
+                "category_C": stats['C'],
+                "total": stats['A'] + stats['B'] + stats['C']
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"❌ Error en clasificación ABC: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "classification": {'A': [], 'B': [], 'C': []},
+            "stats": {}
+        }), 500
+
+
+@app.route('/api/analytics/cashflow', methods=['GET'])
+def get_cashflow_analytics():
+    """
+    Métricas avanzadas de Cash Flow:
+    - Margen promedio por categoría
+    - ROI total del inventario
+    - Productos estancados (sin ventas 30+ días)
+    - Velocity promedio
+    - Proyección de stockout
+    """
+    try:
+        from database import get_db_connection
+
+        conn = get_db_connection()
+
+        # Métricas generales
+        metrics = conn.execute('''
+            SELECT
+                -- Totales
+                COUNT(*) as total_products,
+                SUM(stock) as total_inventory_units,
+                ROUND(SUM(stock * price), 2) as total_inventory_value,
+                ROUND(SUM(stock * cost_price), 2) as total_inventory_cost,
+
+                -- Margen promedio
+                ROUND(AVG(
+                    CASE
+                        WHEN cost_price > 0 THEN ((price - cost_price) / price) * 100
+                        ELSE NULL
+                    END
+                ), 2) as avg_margin_percent,
+
+                -- Velocity promedio
+                ROUND(AVG(velocity_daily), 2) as avg_velocity_daily,
+
+                -- Productos sin ventas recientes
+                SUM(
+                    CASE
+                        WHEN last_sale_date IS NULL OR
+                             julianday('now') - julianday(last_sale_date) > 30
+                        THEN 1 ELSE 0
+                    END
+                ) as stagnant_products,
+
+                -- Días promedio hasta stockout
+                ROUND(AVG(
+                    CASE
+                        WHEN velocity_daily > 0 THEN stock / velocity_daily
+                        ELSE NULL
+                    END
+                ), 1) as avg_days_to_stockout
+
+            FROM products
+            WHERE stock > 0
+        ''').fetchone()
+
+        # Métricas por categoría ABC
+        category_metrics = conn.execute('''
+            SELECT
+                category,
+                COUNT(*) as count,
+                ROUND(AVG(
+                    CASE
+                        WHEN cost_price > 0 THEN ((price - cost_price) / price) * 100
+                        ELSE NULL
+                    END
+                ), 2) as avg_margin,
+                ROUND(SUM(stock * price), 2) as inventory_value,
+                ROUND(AVG(velocity_daily), 2) as avg_velocity
+            FROM products
+            WHERE category IS NOT NULL AND stock > 0
+            GROUP BY category
+            ORDER BY category
+        ''').fetchall()
+
+        # Top productos por ROI
+        top_roi = conn.execute('''
+            SELECT
+                name,
+                sku,
+                stock,
+                price,
+                cost_price,
+                total_sales_30d,
+                ROUND(((price - cost_price) / cost_price) * 100, 2) as roi_percent,
+                ROUND(total_sales_30d * (price - cost_price), 2) as profit_30d
+            FROM products
+            WHERE cost_price > 0 AND total_sales_30d > 0
+            ORDER BY roi_percent DESC
+            LIMIT 10
+        ''').fetchall()
+
+        conn.close()
+
+        # Calcular ROI total del inventario
+        metrics_dict = dict(metrics)
+        total_value = metrics_dict.get('total_inventory_value', 0) or 0
+        total_cost = metrics_dict.get('total_inventory_cost', 0) or 0
+        roi_total = 0
+        if total_cost > 0:
+            roi_total = round(((total_value - total_cost) / total_cost) * 100, 2)
+
+        return jsonify({
+            "status": "success",
+            "overall": {
+                **metrics_dict,
+                "roi_total_percent": roi_total
+            },
+            "by_category": [dict(row) for row in category_metrics],
+            "top_performers": [dict(row) for row in top_roi]
+        }), 200
+
+    except Exception as e:
+        logger.error(f"❌ Error en analytics cashflow: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
+@app.route('/api/products/update-cashflow', methods=['POST'])
+def update_product_cashflow():
+    """
+    Actualiza los datos de Cash Flow de un producto existente.
+
+    Body JSON:
+    {
+        "sku": "BVP-007",
+        "cost_price": 180.00,
+        "total_sales_30d": 45,
+        "category": "A"  (opcional, se calcula automáticamente)
+    }
+
+    Permite a los dueños actualizar manualmente:
+    - Costo de adquisición
+    - Ventas de últimos 30 días
+    - Categoría ABC (opcional)
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "status": "error",
+                "message": "No se proporcionó data JSON"
+            }), 400
+
+        sku = data.get('sku')
+        if not sku:
+            return jsonify({
+                "status": "error",
+                "message": "SKU es requerido"
+            }), 400
+
+        from database import get_db_connection
+
+        conn = get_db_connection()
+
+        # Verificar que el producto existe
+        product = conn.execute('SELECT id FROM products WHERE sku = ?', (sku,)).fetchone()
+        if not product:
+            conn.close()
+            return jsonify({
+                "status": "error",
+                "message": f"Producto con SKU {sku} no encontrado"
+            }), 404
+
+        # Extraer datos de Cash Flow del request
+        cost_price = data.get('cost_price')
+        total_sales_30d = data.get('total_sales_30d')
+        category = data.get('category')
+
+        # Calcular velocity si hay ventas
+        velocity_daily = None
+        if total_sales_30d is not None:
+            velocity_daily = round(total_sales_30d / 30.0, 2)
+
+            # Auto-calcular category si no se proporcionó
+            if category is None:
+                if velocity_daily >= 2.0:
+                    category = 'A'
+                elif velocity_daily >= 0.5:
+                    category = 'B'
+                else:
+                    category = 'C'
+
+        # Actualizar last_sale_date si hay ventas
+        from datetime import datetime
+        last_sale_date = datetime.now().isoformat() if total_sales_30d and total_sales_30d > 0 else None
+
+        # Construir UPDATE dinámico
+        updates = []
+        params = []
+
+        if cost_price is not None:
+            updates.append("cost_price = ?")
+            params.append(cost_price)
+
+        if total_sales_30d is not None:
+            updates.append("total_sales_30d = ?")
+            params.append(total_sales_30d)
+
+        if velocity_daily is not None:
+            updates.append("velocity_daily = ?")
+            params.append(velocity_daily)
+
+        if category is not None:
+            updates.append("category = ?")
+            params.append(category)
+
+        if last_sale_date is not None:
+            updates.append("last_sale_date = ?")
+            params.append(last_sale_date)
+
+        if not updates:
+            conn.close()
+            return jsonify({
+                "status": "error",
+                "message": "No se proporcionaron datos para actualizar"
+            }), 400
+
+        # Ejecutar UPDATE
+        updates.append("last_updated = CURRENT_TIMESTAMP")
+        params.append(sku)
+
+        sql = f"UPDATE products SET {', '.join(updates)} WHERE sku = ?"
+        conn.execute(sql, params)
+        conn.commit()
+
+        # Obtener producto actualizado
+        updated = conn.execute('''
+            SELECT
+                sku, name, stock, price, cost_price,
+                total_sales_30d, velocity_daily, category,
+                CASE
+                    WHEN cost_price > 0 THEN
+                        ROUND(((price - cost_price) / price) * 100, 2)
+                    ELSE NULL
+                END as margin_percent
+            FROM products
+            WHERE sku = ?
+        ''', (sku,)).fetchone()
+
+        conn.close()
+
+        return jsonify({
+            "status": "success",
+            "message": f"Cash Flow actualizado para {sku}",
+            "product": dict(updated)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"❌ Error actualizando Cash Flow: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
 # =============================================================================
 # 🔍 ENDPOINT DE DEBUG - TEMPORAL
 # =============================================================================
