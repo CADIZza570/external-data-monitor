@@ -1457,21 +1457,21 @@ def webhooks_stats():
     ✅ MEJORA v2.6: Analytics básico
     """
     try:
-        from database import get_recent_webhooks
-        
+        from database import get_recent_webhooks, DB_FILE
+
         total = get_webhook_count()
         last_24h = len(get_recent_webhooks(hours=24))
-        
+
         # Obtener últimos 5 webhooks para preview
         recent = get_webhooks(limit=5)
-        
+
         return jsonify({
             "status": "success",
             "stats": {
                 "total_webhooks": total,
                 "last_24_hours": last_24h,
-                "database_file": "webhooks.db",
-                "database_exists": os.path.exists("webhooks.db")
+                "database_file": DB_FILE,
+                "database_exists": os.path.exists(DB_FILE)
             },
             "recent_webhooks": recent
         }), 200
