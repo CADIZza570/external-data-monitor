@@ -11,32 +11,47 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         :root {
-            --primary: #667eea; --primary-dark: #5a67d8;
+            /* Premium Black & Gold Theme */
+            --primary: #d4af37; --primary-dark: #b8941f;
             --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
-            --info: #3b82f6; --gray-50: #f9fafb; --gray-100: #f3f4f6;
-            --gray-200: #e5e7eb; --gray-300: #d1d5db; --gray-400: #9ca3af;
-            --gray-500: #6b7280; --gray-600: #4b5563; --gray-700: #374151;
-            --gray-800: #1f2937; --gray-900: #111827;
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-            --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+            --info: #3b82f6;
+            --black: #1a1a1a; --black-light: #2d2d2d; --black-lighter: #3d3d3d;
+            --gold: #d4af37; --gold-dark: #b8941f;
+            --brown: #8B4513;
+            --gray-50: #0f0f0f; --gray-100: #1a1a1a;
+            --gray-200: #2d2d2d; --gray-300: #3d3d3d; --gray-400: #5d5d5d;
+            --gray-500: #7d7d7d; --gray-600: #9d9d9d; --gray-700: #bdbdbd;
+            --gray-800: #dddddd; --gray-900: #ffffff;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+            --shadow: 0 2px 4px rgba(0,0,0,0.4);
+            --shadow-md: 0 4px 8px rgba(0,0,0,0.5);
+            --shadow-lg: 0 8px 16px rgba(0,0,0,0.6);
             --radius: 12px;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: var(--gray-50); color: var(--gray-800); line-height: 1.6;
+            background: var(--black);
+            color: var(--gray-900);
+            line-height: 1.6;
         }
         
         /* ========================================
            HEADER - Barra Superior
            ======================================== */
         .header {
-            background: linear-gradient(135deg, var(--primary) 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--black) 0%, var(--black-light) 100%);
+            border-bottom: 2px solid var(--gold);
             color: white;
             padding: 24px 32px;
             box-shadow: var(--shadow-lg);
+        }
+
+        .logo-boot {
+            width: 40px;
+            height: 40px;
+            fill: var(--brown);
+            filter: drop-shadow(0 2px 4px rgba(212, 175, 55, 0.3));
         }
         
         .header-top {
@@ -53,6 +68,8 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            color: var(--gold);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
         
         .header-actions {
@@ -89,9 +106,9 @@
            BARRA DE FILTROS
            ======================================== */
         .filters-bar {
-            background: white;
+            background: var(--black-light);
             padding: 16px 32px;
-            border-bottom: 1px solid var(--gray-200);
+            border-bottom: 1px solid var(--gray-300);
             display: flex;
             gap: 20px;
             align-items: center;
@@ -173,10 +190,11 @@
         }
         
         .stat-card {
-            background: white;
+            background: var(--black-light);
             border-radius: var(--radius);
             padding: 20px;
             box-shadow: var(--shadow);
+            border: 1px solid var(--gray-300);
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
@@ -226,9 +244,10 @@
            TARJETAS Y CONTENIDO
            ======================================== */
         .card {
-            background: white;
+            background: var(--black-light);
             border-radius: var(--radius);
             box-shadow: var(--shadow);
+            border: 1px solid var(--gray-300);
             margin-bottom: 24px;
             overflow: hidden;
         }
@@ -608,6 +627,8 @@
             color: #92400e;
         }
     </style>
+    <!-- jsPDF Library for PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
     <!-- ========================================
@@ -616,17 +637,19 @@
     <header class="header">
         <div class="header-top">
             <h1>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 3h18v18H3zM12 8v8M8 12h8"/>
+                <svg class="logo-boot" width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M30,85 Q30,75 35,70 L35,35 Q35,25 45,25 L55,25 Q65,25 65,35 L65,70 Q70,75 70,85 L70,90 Q70,95 65,95 L35,95 Q30,95 30,90 Z" fill="currentColor"/>
+                    <path d="M35,35 L35,50 Q35,55 40,55 L60,55 Q65,55 65,50 L65,35" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <ellipse cx="50" cy="60" rx="12" ry="8" fill="none" stroke="var(--gold)" stroke-width="1.5"/>
                 </svg>
-                Smart Inventory Alerts
+                Smart Inventory Pro
             </h1>
             <div class="header-actions">
-                <button class="btn btn-primary" onclick="exportAllData()">
+                <button class="btn btn-primary" onclick="exportToPDF()" style="background: var(--gold); color: var(--black);">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
                     </svg>
-                    Exportar Todo
+                    Exportar PDF
                 </button>
                 <button class="btn btn-secondary" onclick="refreshData()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1670,7 +1693,77 @@ Recomendación: ${product.daysToStockout <= 3 ? '⚠️ Reponer inmediatamente' 
             
             alert(message);
         }
-        
+
+        // ========================================
+        // EXPORTACIÓN A PDF
+        // ========================================
+
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Header con logo
+            doc.setFillColor(26, 26, 26);
+            doc.rect(0, 0, 210, 40, 'F');
+            doc.setTextColor(212, 175, 55);
+            doc.setFontSize(24);
+            doc.text('Smart Inventory Pro', 20, 25);
+            doc.setFontSize(10);
+            doc.setTextColor(255, 255, 255);
+            doc.text(`Reporte generado: ${new Date().toLocaleString('es-ES')}`, 20, 32);
+
+            let y = 50;
+
+            // Métricas globales
+            doc.setFontSize(16);
+            doc.setTextColor(212, 175, 55);
+            doc.text('📊 MÉTRICAS GLOBALES', 20, y);
+            y += 10;
+
+            doc.setFontSize(11);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Total Productos: ${document.getElementById('total-webhooks').textContent}`, 25, y);
+            y += 7;
+            doc.text(`Stock Crítico: ${document.getElementById('critical-stock').textContent}`, 25, y);
+            y += 7;
+            doc.text(`Velocity Promedio: ${document.getElementById('avg-velocity').textContent} ud/día`, 25, y);
+            y += 15;
+
+            // Productos críticos
+            doc.setFontSize(16);
+            doc.setTextColor(212, 175, 55);
+            doc.text('🚨 PRODUCTOS CRÍTICOS', 20, y);
+            y += 10;
+
+            if (criticalProducts && criticalProducts.length > 0) {
+                doc.setFontSize(9);
+                criticalProducts.slice(0, 15).forEach((p, i) => {
+                    if (y > 270) {
+                        doc.addPage();
+                        y = 20;
+                    }
+                    doc.setTextColor(0, 0, 0);
+                    doc.text(`${i+1}. ${p.name}`, 25, y);
+                    y += 5;
+                    doc.setTextColor(100, 100, 100);
+                    doc.text(`   SKU: ${p.sku} | Stock: ${p.stock} | Velocity: ${p.velocity} ud/día`, 25, y);
+                    y += 7;
+                });
+            }
+
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150, 150, 150);
+                doc.text(`Página ${i} de ${pageCount}`, 105, 290, { align: 'center' });
+            }
+
+            // Guardar
+            doc.save(`Reporte_Inventario_${new Date().toISOString().split('T')[0]}.pdf`);
+        }
+
         // ========================================
         // UTILIDADES
         // ========================================
