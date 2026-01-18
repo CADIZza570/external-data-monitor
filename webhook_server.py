@@ -2261,21 +2261,16 @@ def get_products():
         conn = get_db_connection()
         products = conn.execute('''
             SELECT DISTINCT 
-                p.id,
-                p.product_id,
-                p.name,
-                p.sku,
-                p.stock,
-                p.price,
-                p.shop,
-                p.last_updated,
-                CASE 
-                    WHEN p.stock = 0 THEN 'critical'
-                    WHEN p.stock <= 5 THEN 'warning'
-                    ELSE 'ok'
-                END as status
-            FROM products p
-            ORDER BY p.stock ASC, p.last_updated DESC
+                id as product_id,
+                payload->>'$.title' as name,
+                payload->>'$.variants[0].sku' as sku,
+                CAST(payload->>'$.variants[0].inventory_quantity' as INTEGER) as stock,
+                CAST(payload->>'$.variants[0].price' as REAL) as price,
+                shop,
+                timestamp as last_updated
+            FROM webhooks 
+            WHERE topic = 'products/update'
+            ORDER BY timestamp DESC                    
         ''').fetchall()
         
         conn.close()
@@ -2308,23 +2303,18 @@ def get_critical_products():
         
         conn = get_db_connection()
         products = conn.execute('''
-            SELECT 
-                p.id,
-                p.product_id,
-                p.name,
-                p.sku,
-                p.stock,
-                p.price,
-                p.shop,
-                p.last_updated,
-                CASE 
-                    WHEN p.stock = 0 THEN 'critical'
-                    WHEN p.stock <= 5 THEN 'warning'
-                    ELSE 'ok'
-                END as status
-            FROM products p
-            WHERE p.stock <= 5
-            ORDER BY p.stock ASC
+            SELECT DISTINCT 
+                id as product_id,
+                payload->>'$.title' as name,
+                payload->>'$.variants[0].sku' as sku,
+                CAST(payload->>'$.variants[0].inventory_quantity' as INTEGER) as stock,
+                CAST(payload->>'$.variants[0].price' as REAL) as price,
+                shop,
+                timestamp as last_updated
+            FROM webhooks 
+            WHERE topic = 'products/update'
+                AND CAST(payload->>'$.variants[0].inventory_quantity' as INTEGER) <= 5
+            ORDER BY stock ASC, timestamp DESC                    
         ''').fetchall()
         
         conn.close()
