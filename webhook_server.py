@@ -2640,6 +2640,146 @@ def get_cashflow_analytics():
             "message": str(e)
         }), 500
 
+
+@app.route('/api/products/update-cashflow', methods=['POST'])
+def update_product_cashflow():
+    """
+    Actualiza los datos de Cash Flow de un producto existente.
+
+    Body JSON:
+    {
+        "sku": "BVP-007",
+        "cost_price": 180.00,
+        "total_sales_30d": 45,
+        "category": "A"  (opcional, se calcula automáticamente)
+    }
+
+    Permite a los dueños actualizar manualmente:
+    - Costo de adquisición
+    - Ventas de últimos 30 días
+    - Categoría ABC (opcional)
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "status": "error",
+                "message": "No se proporcionó data JSON"
+            }), 400
+
+        sku = data.get('sku')
+        if not sku:
+            return jsonify({
+                "status": "error",
+                "message": "SKU es requerido"
+            }), 400
+
+        from database import get_db_connection
+
+        conn = get_db_connection()
+
+        # Verificar que el producto existe
+        product = conn.execute('SELECT id FROM products WHERE sku = ?', (sku,)).fetchone()
+        if not product:
+            conn.close()
+            return jsonify({
+                "status": "error",
+                "message": f"Producto con SKU {sku} no encontrado"
+            }), 404
+
+        # Extraer datos de Cash Flow del request
+        cost_price = data.get('cost_price')
+        total_sales_30d = data.get('total_sales_30d')
+        category = data.get('category')
+
+        # Calcular velocity si hay ventas
+        velocity_daily = None
+        if total_sales_30d is not None:
+            velocity_daily = round(total_sales_30d / 30.0, 2)
+
+            # Auto-calcular category si no se proporcionó
+            if category is None:
+                if velocity_daily >= 2.0:
+                    category = 'A'
+                elif velocity_daily >= 0.5:
+                    category = 'B'
+                else:
+                    category = 'C'
+
+        # Actualizar last_sale_date si hay ventas
+        from datetime import datetime
+        last_sale_date = datetime.now().isoformat() if total_sales_30d and total_sales_30d > 0 else None
+
+        # Construir UPDATE dinámico
+        updates = []
+        params = []
+
+        if cost_price is not None:
+            updates.append("cost_price = ?")
+            params.append(cost_price)
+
+        if total_sales_30d is not None:
+            updates.append("total_sales_30d = ?")
+            params.append(total_sales_30d)
+
+        if velocity_daily is not None:
+            updates.append("velocity_daily = ?")
+            params.append(velocity_daily)
+
+        if category is not None:
+            updates.append("category = ?")
+            params.append(category)
+
+        if last_sale_date is not None:
+            updates.append("last_sale_date = ?")
+            params.append(last_sale_date)
+
+        if not updates:
+            conn.close()
+            return jsonify({
+                "status": "error",
+                "message": "No se proporcionaron datos para actualizar"
+            }), 400
+
+        # Ejecutar UPDATE
+        updates.append("last_updated = CURRENT_TIMESTAMP")
+        params.append(sku)
+
+        sql = f"UPDATE products SET {', '.join(updates)} WHERE sku = ?"
+        conn.execute(sql, params)
+        conn.commit()
+
+        # Obtener producto actualizado
+        updated = conn.execute('''
+            SELECT
+                sku, name, stock, price, cost_price,
+                total_sales_30d, velocity_daily, category,
+                CASE
+                    WHEN cost_price > 0 THEN
+                        ROUND(((price - cost_price) / price) * 100, 2)
+                    ELSE NULL
+                END as margin_percent
+            FROM products
+            WHERE sku = ?
+        ''', (sku,)).fetchone()
+
+        conn.close()
+
+        return jsonify({
+            "status": "success",
+            "message": f"Cash Flow actualizado para {sku}",
+            "product": dict(updated)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"❌ Error actualizando Cash Flow: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
 # =============================================================================
 # 🔍 ENDPOINT DE DEBUG - TEMPORAL
 # =============================================================================
