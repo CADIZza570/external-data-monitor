@@ -18,8 +18,11 @@ import os
 # CONFIGURACIÓN
 # ============================================================
 
-# Nombre del archivo de base de datos
-DB_FILE = "webhooks.db"
+# Ruta de la base de datos
+# En Railway con volumen: /data/webhooks.db
+# En local: ./webhooks.db
+DATA_DIR = os.getenv("DATA_DIR", ".")
+DB_FILE = os.path.join(DATA_DIR, "webhooks.db")
 
 # ============================================================
 # FUNCIONES DE INICIALIZACIÓN
@@ -30,6 +33,9 @@ def init_database():
     Inicializa la base de datos y crea tabla si no existe.
     Se ejecuta automáticamente al importar este módulo.
     """
+    # Crear directorio de datos si no existe
+    os.makedirs(DATA_DIR, exist_ok=True)
+
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
@@ -68,6 +74,7 @@ def init_database():
     conn.commit()
     conn.close()
     print(f"✅ Base de datos inicializada: {DB_FILE}")
+    print(f"📁 Directorio de datos: {DATA_DIR}")
 
 # ============================================================
 # FUNCIÓN DE CONEXIÓN

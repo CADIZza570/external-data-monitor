@@ -14,7 +14,9 @@
   },
   "environments": {
     "production": {
-      "variables": {}
+      "variables": {
+        "DATA_DIR": "/data"
+      }
     }
   }
 }
