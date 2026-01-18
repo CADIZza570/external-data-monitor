@@ -2377,42 +2377,6 @@ def get_critical_products():
             "products": []
         }), 500
 
-# =============================================================================
-# GUARDAR EN TABLA PRODUCTS (EXTRAER DEL PAYLOAD)
-# =============================================================================
-try:
-    import json
-    payload_data = json.loads(payload)
-    
-    # Extraer datos del producto del payload
-    product_id = payload_data.get('id')
-    title = payload_data.get('title', 'Sin título')
-    vendor = payload_data.get('vendor', '')
-    shop_domain = shop
-    
-    # Buscar variant con inventory_quantity
-    variants = payload_data.get('variants', [])
-    if variants:
-        variant = variants[0]
-        sku = variant.get('sku', f'PROD-{product_id}')
-        stock = variant.get('inventory_quantity', 0)
-        price = variant.get('price', 0)
-    else:
-        sku = f'PROD-{product_id}'
-        stock = 0
-        price = 0
-    
-    # Insertar o actualizar en products
-    conn.execute('''
-        INSERT OR REPLACE INTO products (product_id, name, sku, stock, price, shop, last_updated)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    ''', (str(product_id), title, sku, stock, price, shop_domain))
-    
-    logger.info(f"✅ Producto guardado: {title} (stock: {stock})")
-    
-except Exception as product_error:
-    logger.warning(f"⚠️ No se pudo guardar producto: {product_error}")
-
 # ============================================================
 # 🚀 ENTRY POINT 
 # ============================================================
