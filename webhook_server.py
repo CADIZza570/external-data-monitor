@@ -2403,8 +2403,51 @@ def debug_db():
         
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-# =============================================================================    
-
+# =============================================================================  
+  
+# ============================================================
+# 🔍 DEBUG WEBHOOKS - Ver webhooks recientes
+# ============================================================
+@app.route('/api/debug/webhooks', methods=['GET'])
+def debug_webhooks():
+    """Ver últimos 10 webhooks en la base de datos"""
+    try:
+        from database import get_db_connection
+        
+        conn = get_db_connection()
+        
+        webhooks = conn.execute('''
+            SELECT 
+                id,
+                source,
+                topic,
+                shop,
+                received_at,
+                simulation,
+                substr(payload, 1, 200) as payload_preview
+            FROM webhooks 
+            ORDER BY received_at DESC 
+            LIMIT 10
+        ''').fetchall()
+        
+        conn.close()
+        
+        webhook_list = [dict(row) for row in webhooks]
+        
+        return jsonify({
+            "status": "success",
+            "count": len(webhook_list),
+            "webhooks": webhook_list
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error en debug_webhooks: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "webhooks": []
+        }), 500
+    
 # ============================================================
 # 🚀 ENTRY POINT 
 # ============================================================
