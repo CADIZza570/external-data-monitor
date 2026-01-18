@@ -2267,10 +2267,10 @@ def get_products():
                 CAST(payload->>'$.variants[0].inventory_quantity' as INTEGER) as stock,
                 CAST(payload->>'$.variants[0].price' as REAL) as price,
                 shop,
-                timestamp as last_updated
+                received_at as last_updated
             FROM webhooks 
             WHERE topic = 'products/update'
-            ORDER BY timestamp DESC                    
+            ORDER BY received_at DESC                  
         ''').fetchall()
         
         conn.close()
@@ -2310,11 +2310,11 @@ def get_critical_products():
                 CAST(payload->>'$.variants[0].inventory_quantity' as INTEGER) as stock,
                 CAST(payload->>'$.variants[0].price' as REAL) as price,
                 shop,
-                timestamp as last_updated
+                received_at as last_updated
             FROM webhooks 
             WHERE topic = 'products/update'
                 AND CAST(payload->>'$.variants[0].inventory_quantity' as INTEGER) <= 5
-            ORDER BY stock ASC, timestamp DESC                    
+            ORDER BY stock ASC, received_at DESC                    
         ''').fetchall()
         
         conn.close()
