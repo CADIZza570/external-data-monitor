@@ -2273,6 +2273,11 @@ def get_products():
             ORDER BY received_at DESC                  
         ''').fetchall()
         
+        # DEBUG: Ver qué devuelve la consulta
+        logger.info(f"🔍 DEBUG get_products: Found {len(products)} products")
+        if products:
+            logger.info(f"🔍 DEBUG first product: {dict(products[0])}")
+        
         conn.close()
         
         # Convertir a lista de dicts
