@@ -1305,6 +1305,11 @@ def save_payload(df: pd.DataFrame, name: str = "webhook_data") -> str:
 
 app = Flask(__name__)
 
+# ============= NUEVO: Blueprint Cash Flow API =============
+from cashflow_api import cashflow_bp
+app.register_blueprint(cashflow_bp)
+# =========================================================
+
 @app.route('/')
 def home():
     return "¡Servidor webhook funcionando! ✅"
