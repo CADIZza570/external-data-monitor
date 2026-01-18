@@ -2319,7 +2319,7 @@ def get_products():
         
         return jsonify({
             "status": "success",
-            "count": len(product_list),
+            "count": len(product_list),  # ✅ CORRECTO
             "products": product_list
         }), 200
         
