@@ -761,6 +761,42 @@
                 </div>
                 <div class="stat-icon">📉</div>
             </div>
+
+            <div class="stat-card success">
+                <div class="stat-content">
+                    <h3>Total Productos</h3>
+                    <div class="value" id="total-products">-</div>
+                    <div class="change">en inventario</div>
+                </div>
+                <div class="stat-icon">📦</div>
+            </div>
+
+            <div class="stat-card info">
+                <div class="stat-content">
+                    <h3>Valor Inventario</h3>
+                    <div class="value" id="total-inventory-value">-</div>
+                    <div class="change">total valorizado</div>
+                </div>
+                <div class="stat-icon">💰</div>
+            </div>
+
+            <div class="stat-card success">
+                <div class="stat-content">
+                    <h3>Margen Promedio</h3>
+                    <div class="value" id="avg-margin">-</div>
+                    <div class="change">rentabilidad</div>
+                </div>
+                <div class="stat-icon">📊</div>
+            </div>
+
+            <div class="stat-card warning">
+                <div class="stat-content">
+                    <h3>ROI Total</h3>
+                    <div class="value" id="roi-total">-</div>
+                    <div class="change">retorno inversión</div>
+                </div>
+                <div class="stat-icon">🎯</div>
+            </div>
         </div>
         
         <!-- Grid de 2 columnas: Gráfico y Analytics -->
@@ -813,14 +849,18 @@
                                 <th>Producto</th>
                                 <th>SKU</th>
                                 <th>Stock</th>
+                                <th>Costo</th>
+                                <th>Margen %</th>
                                 <th>Velocity</th>
+                                <th>Categoría</th>
                                 <th>Días Stockout</th>
+                                <th>Días sin venta</th>
                                 <th>Acción</th>
                             </tr>
                         </thead>
                         <tbody id="critical-tbody">
                             <tr>
-                                <td colspan="7">
+                                <td colspan="11">
                                     <div class="loading"><div class="spinner"></div></div>
                                 </td>
                             </tr>
@@ -933,7 +973,8 @@
                     loadStats(),
                     loadHistory(),
                     loadSystemStatus(),
-                    loadCriticalProducts()
+                    loadCriticalProducts(),
+                    loadCashFlowAnalytics()
                 ]);
                 
                 const elapsed = Date.now() - startTime;
@@ -1088,22 +1129,12 @@
                 const data = await response.json();
                 
                 if (data.status === 'success' && data.products.length > 0) {
-                    // Usar productos reales de la base de datos
-                    const products = data.products.map(p => ({
-                        name: p.name,
-                        sku: p.sku,
-                        stock: p.stock,
-                        velocity: (Math.random() * 2 + 0.5).toFixed(2), // Temporal hasta que haya analytics real
-                        daysToStockout: p.stock === 0 ? 0 : Math.max(1, Math.floor(7 / Math.max(p.stock, 1))),
-                        status: p.status,
-                        shop: p.shop
-                    }));
-                    
-                    criticalProducts = products;
-                    renderCriticalTable(products);
-                    updateCriticalStats(products);
-                    
-                    return products;
+                    // Usar productos reales de la base de datos con datos Cash Flow completos
+                    criticalProducts = data.products;
+                    renderCriticalTable(data.products);
+                    updateCriticalStats(data.products);
+
+                    return data.products;
                 }
                 
                 // Si no hay productos, usar fallback
@@ -1127,6 +1158,43 @@
             }
         }
         
+        // ========================================
+        // CARGAR ANALYTICS CASH FLOW
+        // ========================================
+        async function loadCashFlowAnalytics() {
+            try {
+                const response = await fetch(`${CONFIG.API_BASE}/api/analytics/cashflow`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    updateCashFlowStats(data.overall);
+                    return data;
+                }
+
+                throw new Error('Invalid response format');
+
+            } catch (error) {
+                console.error('❌ Error loading Cash Flow analytics:', error);
+                return null;
+            }
+        }
+
+        function updateCashFlowStats(overall) {
+            // Update stats cards with Cash Flow data
+            if (overall) {
+                document.getElementById('total-products').textContent = formatNumber(overall.total_products || 0);
+                document.getElementById('total-inventory-value').textContent = `$${formatNumber(overall.total_inventory_value || 0)}`;
+                document.getElementById('avg-margin').textContent = `${(overall.avg_margin_percent || 0).toFixed(1)}%`;
+                document.getElementById('avg-velocity').textContent = `${(overall.avg_velocity_daily || 0).toFixed(2)} ud/día`;
+                document.getElementById('roi-total').textContent = `${(overall.roi_total_percent || 0).toFixed(1)}%`;
+            }
+        }
+
         // ========================================
         // CARGAR ESTADO DEL SISTEMA
         // ========================================
@@ -1272,7 +1340,7 @@
             if (filteredProducts.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="7">
+                        <td colspan="11">
                             <div class="empty-state">
                                 <p>No hay productos críticos con los filtros actuales</p>
                             </div>
@@ -1287,7 +1355,16 @@
                 const stockClass = p.stock === 0 ? 'critical' : p.stock <= 3 ? 'warning' : 'ok';
                 const stockText = p.stock === 0 ? 'AGOTADO' : `${p.stock} unidades`;
                 const statusLabel = p.status === 'critical' ? 'CRÍTICO' : 'BAJO';
-                
+
+                // Cash Flow data from API
+                const costPrice = p.cost_price ? `$${p.cost_price.toFixed(2)}` : 'N/A';
+                const marginPercent = p.margin_percent ? `${p.margin_percent.toFixed(1)}%` : 'N/A';
+                const velocity = p.velocity_daily !== null ? `${p.velocity_daily.toFixed(2)} ud/día` : 'N/A';
+                const category = p.category || 'N/A';
+                const categoryClass = p.category === 'A' ? 'success' : p.category === 'B' ? 'warning' : 'danger';
+                const daysToStockout = p.days_to_stockout;
+                const daysSinceSale = p.days_since_sale;
+
                 html += `
                     <tr class="${p.status === 'critical' ? 'critical' : ''}">
                         <td>
@@ -1301,14 +1378,18 @@
                         <td><strong>${escapeHtml(p.name)}</strong></td>
                         <td><code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${escapeHtml(p.sku)}</code></td>
                         <td><strong>${stockText}</strong></td>
-                        <td>${p.velocity} ud/día</td>
+                        <td><span style="color: var(--brown); font-weight: 600;">${costPrice}</span></td>
+                        <td><span style="color: var(--gold); font-weight: 600;">${marginPercent}</span></td>
+                        <td>${velocity}</td>
+                        <td><span class="badge badge-${categoryClass}">${category}</span></td>
                         <td>
-                            ${p.daysToStockout === 0 
-                                ? '<span class="badge badge-danger">AGOTADO</span>' 
-                                : p.daysToStockout <= 3 
-                                    ? `<span class="badge badge-warning">${p.daysToStockout} días</span>` 
-                                    : `${p.daysToStockout} días`}
+                            ${daysToStockout === null || daysToStockout === 0
+                                ? '<span class="badge badge-danger">AGOTADO</span>'
+                                : daysToStockout <= 3
+                                    ? `<span class="badge badge-warning">${daysToStockout} días</span>`
+                                    : `${daysToStockout} días`}
                         </td>
+                        <td>${daysSinceSale !== null ? `${daysSinceSale} días` : 'N/A'}</td>
                         <td>
                             <button class="btn btn-secondary btn-sm" onclick="viewProductDetails('${escapeHtml(p.sku)}')">
                                 Detalles
