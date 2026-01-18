@@ -16,7 +16,11 @@ import os
 from datetime import datetime
 
 # Usar el mismo archivo DB que database.py
-DB_FILE = os.getenv("DATA_DIR", ".") + "/webhooks.db"
+DATA_DIR = os.getenv("DATA_DIR", ".")
+DB_FILE = f"{DATA_DIR}/webhooks.db"
+
+# Crear directorio si no existe
+os.makedirs(DATA_DIR, exist_ok=True)
 
 def migrate_database():
     """
