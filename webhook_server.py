@@ -1829,6 +1829,37 @@ def webhook_csv():
         
         df_clean = process_data(df)
         
+
+        # =============================================================================
+        # GUARDAR PRODUCTOS EN TABLA SQLite (PARA DASHBOARD)
+        # =============================================================================
+        try:
+            from database import get_db_connection
+            import json
+            
+            conn = get_db_connection()
+            
+            for _, row in df_clean.iterrows():
+                product_id = str(row.get('product_id', ''))
+                name = row.get('name', 'Sin nombre')
+                sku = row.get('sku', f'PROD-{product_id}')
+                stock = int(row.get('stock', 0))
+                price = float(row.get('price', 0)) if row.get('price') else 0
+                
+                # Insertar o actualizar en products
+                conn.execute('''
+                    INSERT OR REPLACE INTO products (product_id, name, sku, stock, price, shop, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ''', (product_id, name, sku, stock, price, shop_domain))
+            
+            conn.commit()
+            conn.close()
+            logger.info(f"✅ {len(df_clean)} productos guardados en SQLite")
+            
+        except Exception as db_error:
+            logger.warning(f"⚠️ Error guardando en SQLite: {db_error}")
+        # =============================================================================
+
         return jsonify({
             "status": "success",
             "processed": len(df_clean),
@@ -1843,36 +1874,6 @@ def webhook_csv():
             "status": "error",
             "message": "Error processing CSV file"  # Generic
         }), 500
-
-# =============================================================================
-# GUARDAR PRODUCTOS EN TABLA SQLite (PARA DASHBOARD)
-# =============================================================================
-try:
-    from database import get_db_connection
-    import json
-    
-    conn = get_db_connection()
-    
-    for _, row in df_clean.iterrows():
-        product_id = str(row.get('product_id', ''))
-        name = row.get('name', 'Sin nombre')
-        sku = row.get('sku', f'PROD-{product_id}')
-        stock = int(row.get('stock', 0))
-        price = float(row.get('price', 0)) if row.get('price') else 0
-        
-        # Insertar o actualizar en products
-        conn.execute('''
-            INSERT OR REPLACE INTO products (product_id, name, sku, stock, price, shop, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ''', (product_id, name, sku, stock, price, shop_domain))
-    
-    conn.commit()
-    conn.close()
-    logger.info(f"✅ {len(df_clean)} productos guardados en SQLite")
-    
-except Exception as db_error:
-    logger.warning(f"⚠️ Error guardando en SQLite: {db_error}")
-# =============================================================================
 
 # =========================
 # 🔗 WEBHOOK ZAPIER (Integration)
