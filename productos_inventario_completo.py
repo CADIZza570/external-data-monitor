@@ -23,7 +23,8 @@ PRODUCTOS = [
         "cost": 45.00,
         "category": "Botas Vaqueras",
         "velocity": 2.5,  # Alta rotación
-        "last_sale_date": "2026-01-18"
+        "last_sale_date": "2026-01-18",
+        "shop": "chaparrita-boots"
     },
     {
         "product_id": "BV-002",
@@ -34,7 +35,8 @@ PRODUCTOS = [
         "cost": 45.00,
         "category": "Botas Vaqueras",
         "velocity": 3.0,  # Muy alta rotación
-        "last_sale_date": "2026-01-19"
+        "last_sale_date": "2026-01-19",
+        "shop": "chaparrita-boots"
     },
     {
         "product_id": "BV-003",
@@ -45,7 +47,8 @@ PRODUCTOS = [
         "cost": 55.00,
         "category": "Botas Vaqueras",
         "velocity": 2.2,
-        "last_sale_date": "2026-01-17"
+        "last_sale_date": "2026-01-17",
+        "shop": "chaparrita-boots"
     },
     {
         "product_id": "BV-004",
@@ -56,7 +59,8 @@ PRODUCTOS = [
         "cost": 65.00,
         "category": "Botas Vaqueras",
         "velocity": 2.8,
-        "last_sale_date": "2026-01-19"
+        "last_sale_date": "2026-01-19",
+        "shop": "chaparrita-boots"
     },
 
     # ========== TEXANAS - VARIEDAD ==========
@@ -69,7 +73,8 @@ PRODUCTOS = [
         "cost": 40.00,
         "category": "Texanas",
         "velocity": 2.5,
-        "last_sale_date": "2026-01-18"
+        "last_sale_date": "2026-01-18",
+        "shop": "chaparrita-boots"
     },
     {
         "product_id": "TX-002",
@@ -80,7 +85,8 @@ PRODUCTOS = [
         "cost": 45.00,
         "category": "Texanas",
         "velocity": 1.8,
-        "last_sale_date": "2026-01-16"
+        "last_sale_date": "2026-01-16",
+        "shop": "chaparrita-boots"
     },
     {
         "product_id": "TX-003",
@@ -91,7 +97,8 @@ PRODUCTOS = [
         "cost": 50.00,
         "category": "Texanas",
         "velocity": 2.1,
-        "last_sale_date": "2026-01-18"
+        "last_sale_date": "2026-01-18",
+        "shop": "chaparrita-boots"
     },
 
     # ========== CATEGORÍA B: ROTACIÓN MEDIA (0.5-2 ud/día) ==========
@@ -104,7 +111,8 @@ PRODUCTOS = [
         "cost": 35.00,
         "category": "Botines",
         "velocity": 1.2,
-        "last_sale_date": "2026-01-17"
+        "last_sale_date": "2026-01-17",
+        "shop": "connie-dev-studio"
     },
     {
         "product_id": "BT-002",
@@ -115,7 +123,8 @@ PRODUCTOS = [
         "cost": 37.50,
         "category": "Botines",
         "velocity": 0.9,
-        "last_sale_date": "2026-01-15"
+        "last_sale_date": "2026-01-15",
+        "shop": "connie-dev-studio"
     },
     {
         "product_id": "BT-003",
@@ -126,7 +135,8 @@ PRODUCTOS = [
         "cost": 32.50,
         "category": "Botines",
         "velocity": 1.5,
-        "last_sale_date": "2026-01-18"
+        "last_sale_date": "2026-01-18",
+        "shop": "connie-dev-studio"
     },
     {
         "product_id": "BT-004",
@@ -137,7 +147,8 @@ PRODUCTOS = [
         "cost": 40.00,
         "category": "Botines",
         "velocity": 1.1,
-        "last_sale_date": "2026-01-12"
+        "last_sale_date": "2026-01-12",
+        "shop": "connie-dev-studio"
     },
 
     # ========== SANDALIAS - TEMPORADA ==========
@@ -150,7 +161,8 @@ PRODUCTOS = [
         "cost": 20.00,
         "category": "Sandalias",
         "velocity": 0.8,
-        "last_sale_date": "2026-01-10"
+        "last_sale_date": "2026-01-10",
+        "shop": "connie-dev-studio"
     },
     {
         "product_id": "SD-002",
@@ -161,7 +173,8 @@ PRODUCTOS = [
         "cost": 25.00,
         "category": "Sandalias",
         "velocity": 1.0,
-        "last_sale_date": "2026-01-14"
+        "last_sale_date": "2026-01-14",
+        "shop": "connie-dev-studio"
     },
     {
         "product_id": "SD-003",
@@ -172,7 +185,8 @@ PRODUCTOS = [
         "cost": 22.50,
         "category": "Sandalias",
         "velocity": 0.7,
-        "last_sale_date": "2026-01-11"
+        "last_sale_date": "2026-01-11",
+        "shop": "connie-dev-studio"
     },
 
     # ========== CATEGORÍA C: BAJA ROTACIÓN (<0.5 ud/día) ==========
@@ -185,7 +199,8 @@ PRODUCTOS = [
         "cost": 15.00,
         "category": "Cinturones",
         "velocity": 0.3,
-        "last_sale_date": "2026-01-05"
+        "last_sale_date": "2026-01-05",
+        "shop": "connie-dev-studio"
     },
     {
         "product_id": "CN-002",
@@ -196,7 +211,8 @@ PRODUCTOS = [
         "cost": 17.50,
         "category": "Cinturones",
         "velocity": 0.4,
-        "last_sale_date": "2026-01-08"
+        "last_sale_date": "2026-01-08",
+        "shop": "connie-dev-studio"
     },
     {
         "product_id": "CN-003",
@@ -207,7 +223,8 @@ PRODUCTOS = [
         "cost": 22.50,
         "category": "Cinturones",
         "velocity": 0.2,
-        "last_sale_date": "2025-12-28"
+        "last_sale_date": "2025-12-28",
+        "shop": "connie-dev-studio"
     },
 
     # ========== BOLSAS - VARIEDAD DE STOCK ==========
@@ -220,7 +237,8 @@ PRODUCTOS = [
         "cost": 30.00,
         "category": "Bolsas",
         "velocity": 1.3,
-        "last_sale_date": "2026-01-16"
+        "last_sale_date": "2026-01-16",
+        "shop": "chaparrita-boots"
     },
     {
         "product_id": "BL-002",
@@ -231,7 +249,8 @@ PRODUCTOS = [
         "cost": 25.00,
         "category": "Bolsas",
         "velocity": 1.7,
-        "last_sale_date": "2026-01-17"
+        "last_sale_date": "2026-01-17",
+        "shop": "chaparrita-boots"
     },
     {
         "product_id": "BL-003",
@@ -242,7 +261,8 @@ PRODUCTOS = [
         "cost": 32.50,
         "category": "Bolsas",
         "velocity": 2.0,
-        "last_sale_date": "2026-01-19"
+        "last_sale_date": "2026-01-19",
+        "shop": "chaparrita-boots"
     },
     {
         "product_id": "BL-004",
@@ -253,7 +273,8 @@ PRODUCTOS = [
         "cost": 27.50,
         "category": "Bolsas",
         "velocity": 0.9,
-        "last_sale_date": "2026-01-13"
+        "last_sale_date": "2026-01-13",
+        "shop": "chaparrita-boots"
     },
 
     # ========== SOMBREROS ==========
@@ -266,7 +287,8 @@ PRODUCTOS = [
         "cost": 23.00,
         "category": "Sombreros",
         "velocity": 0.6,
-        "last_sale_date": "2026-01-12"
+        "last_sale_date": "2026-01-12",
+        "shop": "chaparrita-boots"
     },
     {
         "product_id": "SM-002",
@@ -277,7 +299,8 @@ PRODUCTOS = [
         "cost": 40.00,
         "category": "Sombreros",
         "velocity": 1.8,
-        "last_sale_date": "2026-01-18"
+        "last_sale_date": "2026-01-18",
+        "shop": "chaparrita-boots"
     },
     {
         "product_id": "SM-003",
@@ -288,7 +311,8 @@ PRODUCTOS = [
         "cost": 12.50,
         "category": "Sombreros",
         "velocity": 0.5,
-        "last_sale_date": "2026-01-09"
+        "last_sale_date": "2026-01-09",
+        "shop": "chaparrita-boots"
     },
 
     # ========== ACCESORIOS ==========
@@ -301,7 +325,8 @@ PRODUCTOS = [
         "cost": 7.50,
         "category": "Accesorios",
         "velocity": 0.3,
-        "last_sale_date": "2026-01-06"
+        "last_sale_date": "2026-01-06",
+        "shop": "connie-dev-studio"
     },
     {
         "product_id": "AC-002",
@@ -312,7 +337,8 @@ PRODUCTOS = [
         "cost": 10.00,
         "category": "Accesorios",
         "velocity": 0.8,
-        "last_sale_date": "2026-01-15"
+        "last_sale_date": "2026-01-15",
+        "shop": "connie-dev-studio"
     },
     {
         "product_id": "AC-003",
@@ -323,7 +349,8 @@ PRODUCTOS = [
         "cost": 8.50,
         "category": "Accesorios",
         "velocity": 0.4,
-        "last_sale_date": "2026-01-10"
+        "last_sale_date": "2026-01-10",
+        "shop": "connie-dev-studio"
     },
 
     # ========== PRODUCTOS PREMIUM - ALTO VALOR ==========
@@ -336,7 +363,8 @@ PRODUCTOS = [
         "cost": 150.00,
         "category": "Premium",
         "velocity": 0.5,
-        "last_sale_date": "2026-01-10"
+        "last_sale_date": "2026-01-10",
+        "shop": "connie-dev-studio"
     },
     {
         "product_id": "PR-002",
@@ -347,16 +375,20 @@ PRODUCTOS = [
         "cost": 100.00,
         "category": "Premium",
         "velocity": 0.3,
-        "last_sale_date": "2025-12-30"
+        "last_sale_date": "2025-12-30",
+        "shop": "connie-dev-studio"
     },
 ]
 
 
 def enviar_producto(producto):
     """Envía un producto al webhook"""
+    # Determinar el dominio de la tienda según el campo shop
+    shop_domain = f"{producto['shop']}.myshopify.com"
+
     payload = {
         "topic": "inventory/update",
-        "shop_domain": "chaparrita-boots.myshopify.com",
+        "shop_domain": shop_domain,
         "created_at": datetime.now().isoformat(),
         "line_items": [{
             "variant_id": producto["product_id"],
@@ -370,7 +402,8 @@ def enviar_producto(producto):
     try:
         response = requests.post(WEBHOOK_URL, json=payload, timeout=5)
         if response.status_code == 200:
-            print(f"✅ {producto['sku']}: {producto['title'][:40]} | Stock: {producto['quantity']} | Velocity: {producto['velocity']}")
+            shop_tag = "🟢 CB" if producto['shop'] == 'chaparrita-boots' else "🔵 DEV"
+            print(f"✅ {shop_tag} {producto['sku']}: {producto['title'][:35]} | Stock: {producto['quantity']}")
         else:
             print(f"❌ Error {producto['sku']}: {response.status_code}")
     except Exception as e:
