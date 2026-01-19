@@ -358,7 +358,13 @@ def enviar_producto(producto):
         "topic": "inventory/update",
         "shop_domain": "chaparrita-boots.myshopify.com",
         "created_at": datetime.now().isoformat(),
-        "inventory_item": producto
+        "line_items": [{
+            "variant_id": producto["product_id"],
+            "title": producto["title"],
+            "sku": producto["sku"],
+            "quantity": producto["quantity"],
+            "price": producto["price"]
+        }]
     }
 
     try:
