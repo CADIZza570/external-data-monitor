@@ -313,7 +313,7 @@
         }
 
         .table td {
-            color: var(--gray-800);
+            color: var(--gray-900);
         }
 
         .table th {
@@ -330,9 +330,9 @@
             transition: background 0.15s ease;
         }
         
-        .table tbody tr:hover { background: var(--gray-50); }
-        .table tbody tr.critical { background: #fef2f2; }
-        .table tbody tr.critical:hover { background: #fee2e2; }
+        .table tbody tr:hover { background: var(--gray-100); }
+        .table tbody tr.critical { background: var(--gray-100); }
+        .table tbody tr.critical:hover { background: var(--gray-200); }
         
         /* ========================================
            BADGES Y ETIQUETAS
@@ -1015,7 +1015,7 @@
                 // Si no hay endpoint, usar datos conocidos del sistema
                 if (shops.length === 0) {
                     shops = [
-                        { id: 'chaparrita-boots', name: 'La Chaparrita', domain: 'chaparrita-boots.myshopify.com' },
+                        { id: 'chaparrita-boots', name: 'Chaparrita Boots', domain: 'chaparrita-boots.myshopify.com' },
                         { id: 'connie-dev-studio', name: 'Dev Store', domain: 'connie-dev-studio.myshopify.com' }
                     ];
                 }
@@ -1038,7 +1038,7 @@
                 const select = document.getElementById('shop-filter');
                 select.innerHTML = `
                     <option value="all">Todas las tiendas</option>
-                    <option value="chaparrita-boots">La Chaparrita</option>
+                    <option value="chaparrita-boots">Chaparrita Boots</option>
                     <option value="connie-dev-studio">Dev Store</option>
                 `;
             }
@@ -1380,7 +1380,7 @@
                             </div>
                         </td>
                         <td><strong>${escapeHtml(p.name)}</strong></td>
-                        <td><code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${escapeHtml(p.sku)}</code></td>
+                        <td><code style="background: #f1f5f9; color: #000000; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${escapeHtml(p.sku)}</code></td>
                         <td><strong>${stockText}</strong></td>
                         <td><span style="color: var(--brown); font-weight: 600;">${costPrice}</span></td>
                         <td><span style="color: var(--gold); font-weight: 600;">${marginPercent}</span></td>
@@ -1805,42 +1805,171 @@ Recomendación: ${product.daysToStockout <= 3 ? '⚠️ Reponer inmediatamente' 
 
             let y = 45;
 
-            // Métricas globales
+            // ========== RESUMEN EJECUTIVO ==========
             doc.setFontSize(16);
             doc.setTextColor(212, 175, 55);
-            doc.text('📊 MÉTRICAS GLOBALES', 20, y);
+            doc.text('RESUMEN EJECUTIVO', 20, y);
             y += 10;
 
-            doc.setFontSize(11);
+            doc.setFontSize(10);
             doc.setTextColor(0, 0, 0);
-            doc.text(`Total Productos: ${document.getElementById('total-webhooks').textContent}`, 25, y);
-            y += 7;
-            doc.text(`Stock Crítico: ${document.getElementById('critical-stock').textContent}`, 25, y);
-            y += 7;
-            doc.text(`Velocity Promedio: ${document.getElementById('avg-velocity').textContent} ud/día`, 25, y);
-            y += 15;
 
-            // Productos críticos
+            const totalProducts = document.getElementById('total-products')?.textContent || '0';
+            const criticalStock = document.getElementById('critical-stock')?.textContent || '0';
+            const inventoryValue = document.getElementById('total-inventory-value')?.textContent || '$0';
+            const avgMargin = document.getElementById('avg-margin')?.textContent || '0%';
+            const avgVelocity = document.getElementById('avg-velocity')?.textContent || '0';
+            const roiTotal = document.getElementById('roi-total')?.textContent || '0%';
+
+            // Calcular métricas adicionales
+            const outOfStock = criticalProducts.filter(p => p.stock === 0).length;
+            const needReorder = criticalProducts.filter(p => parseFloat(p.daysToStockout || 0) <= 7).length;
+
+            doc.text(`• Total de Productos: ${totalProducts}`, 25, y);
+            y += 6;
+            doc.text(`• Valor Total de Inventario: ${inventoryValue}`, 25, y);
+            y += 6;
+            doc.text(`• Margen Promedio: ${avgMargin}`, 25, y);
+            y += 6;
+            doc.text(`• ROI Total: ${roiTotal}`, 25, y);
+            y += 6;
+            doc.text(`• Productos Agotados: ${outOfStock}`, 25, y);
+            y += 6;
+            doc.text(`• Productos Requieren Reorden (≤7 días): ${needReorder}`, 25, y);
+            y += 12;
+
+            // ========== MÉTRICAS FINANCIERAS ==========
             doc.setFontSize(16);
             doc.setTextColor(212, 175, 55);
-            doc.text('🚨 PRODUCTOS CRÍTICOS', 20, y);
+            doc.text('MÉTRICAS FINANCIERAS', 20, y);
+            y += 10;
+
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Velocidad Promedio de Ventas: ${avgVelocity} unidades/día`, 25, y);
+            y += 6;
+            doc.text(`Stock Crítico: ${criticalStock} productos`, 25, y);
+            y += 6;
+
+            // Calcular proyección de ventas
+            const velocityNum = parseFloat(avgVelocity.split(' ')[0]) || 0;
+            const projectionMonth = (velocityNum * 30).toFixed(0);
+            doc.text(`Proyección Ventas (30 días): ${projectionMonth} unidades`, 25, y);
+            y += 12;
+
+            // ========== ANÁLISIS POR CATEGORÍA ABC ==========
+            doc.setFontSize(16);
+            doc.setTextColor(212, 175, 55);
+            doc.text('ANÁLISIS POR CATEGORÍA ABC', 20, y);
+            y += 10;
+
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+
+            const categoryA = criticalProducts.filter(p => p.category === 'A' || (p.velocity && parseFloat(p.velocity) >= 2.0)).length;
+            const categoryB = criticalProducts.filter(p => p.category === 'B' || (p.velocity && parseFloat(p.velocity) >= 0.5 && parseFloat(p.velocity) < 2.0)).length;
+            const categoryC = criticalProducts.filter(p => p.category === 'C' || (p.velocity && parseFloat(p.velocity) < 0.5)).length;
+
+            doc.text(`• Categoría A (Alta Rotación ≥2 ud/día): ${categoryA} productos`, 25, y);
+            y += 6;
+            doc.text(`• Categoría B (Rotación Media 0.5-2 ud/día): ${categoryB} productos`, 25, y);
+            y += 6;
+            doc.text(`• Categoría C (Baja Rotación <0.5 ud/día): ${categoryC} productos`, 25, y);
+            y += 12;
+
+            // ========== TOP 5 PRODUCTOS DE MEJOR ROTACIÓN ==========
+            doc.setFontSize(16);
+            doc.setTextColor(212, 175, 55);
+            doc.text('TOP 5 PRODUCTOS - MEJOR ROTACIÓN', 20, y);
+            y += 10;
+
+            const topProducts = [...criticalProducts]
+                .sort((a, b) => parseFloat(b.velocity || 0) - parseFloat(a.velocity || 0))
+                .slice(0, 5);
+
+            doc.setFontSize(9);
+            topProducts.forEach((p, i) => {
+                if (y > 270) {
+                    doc.addPage();
+                    y = 20;
+                }
+                doc.setTextColor(0, 0, 0);
+                doc.text(`${i+1}. ${p.name}`, 25, y);
+                y += 5;
+                doc.setTextColor(100, 100, 100);
+                doc.text(`   Velocity: ${p.velocity} ud/día | Stock: ${p.stock} | SKU: ${p.sku}`, 25, y);
+                y += 7;
+            });
+            y += 5;
+
+            // ========== PRODUCTOS CRÍTICOS (REQUIEREN ATENCIÓN) ==========
+            if (y > 230) {
+                doc.addPage();
+                y = 20;
+            }
+
+            doc.setFontSize(16);
+            doc.setTextColor(212, 175, 55);
+            doc.text('PRODUCTOS CRÍTICOS - REQUIEREN REORDEN', 20, y);
             y += 10;
 
             if (criticalProducts && criticalProducts.length > 0) {
                 doc.setFontSize(9);
-                criticalProducts.slice(0, 15).forEach((p, i) => {
-                    if (y > 270) {
-                        doc.addPage();
-                        y = 20;
-                    }
-                    doc.setTextColor(0, 0, 0);
-                    doc.text(`${i+1}. ${p.name}`, 25, y);
-                    y += 5;
-                    doc.setTextColor(100, 100, 100);
-                    doc.text(`   SKU: ${p.sku} | Stock: ${p.stock} | Velocity: ${p.velocity} ud/día`, 25, y);
+                const urgentProducts = criticalProducts
+                    .filter(p => p.stock <= 3 || parseFloat(p.daysToStockout || 999) <= 7)
+                    .slice(0, 15);
+
+                if (urgentProducts.length === 0) {
+                    doc.setTextColor(0, 150, 0);
+                    doc.text('✓ No hay productos críticos en este momento', 25, y);
                     y += 7;
-                });
+                } else {
+                    urgentProducts.forEach((p, i) => {
+                        if (y > 270) {
+                            doc.addPage();
+                            y = 20;
+                        }
+                        doc.setTextColor(0, 0, 0);
+                        const urgencyIcon = p.stock === 0 ? '[AGOTADO]' : p.stock <= 2 ? '[URGENTE]' : '[ALERTA]';
+                        doc.text(`${i+1}. ${urgencyIcon} ${p.name}`, 25, y);
+                        y += 5;
+                        doc.setTextColor(100, 100, 100);
+                        const daysText = p.daysToStockout ? `Días hasta agotarse: ${p.daysToStockout}` : '';
+                        doc.text(`   SKU: ${p.sku} | Stock: ${p.stock} | Velocity: ${p.velocity} ud/día | ${daysText}`, 25, y);
+                        y += 7;
+                    });
+                }
             }
+
+            // ========== RECOMENDACIONES ==========
+            if (y > 240) {
+                doc.addPage();
+                y = 20;
+            }
+
+            doc.setFontSize(16);
+            doc.setTextColor(212, 175, 55);
+            doc.text('RECOMENDACIONES', 20, y);
+            y += 10;
+
+            doc.setFontSize(9);
+            doc.setTextColor(0, 0, 0);
+
+            if (outOfStock > 0) {
+                doc.text(`• URGENTE: ${outOfStock} producto(s) agotado(s) - Reordenar inmediatamente`, 25, y);
+                y += 6;
+            }
+            if (needReorder > 0) {
+                doc.text(`• ${needReorder} producto(s) se agotarán en menos de 7 días - Planificar reorden`, 25, y);
+                y += 6;
+            }
+            if (categoryA > 0) {
+                doc.text(`• Priorizar stock de ${categoryA} productos categoría A (alta rotación)`, 25, y);
+                y += 6;
+            }
+            doc.text(`• Mantener stock de seguridad: Categoría A = 14 días, B = 7 días, C = 5 días`, 25, y);
+            y += 6;
+            doc.text(`• Revisar productos categoría C con baja rotación para ofertas o descontinuar`, 25, y);
 
             // Footer
             const pageCount = doc.internal.getNumberOfPages();
@@ -1849,6 +1978,7 @@ Recomendación: ${product.daysToStockout <= 3 ? '⚠️ Reponer inmediatamente' 
                 doc.setFontSize(8);
                 doc.setTextColor(150, 150, 150);
                 doc.text(`Página ${i} de ${pageCount}`, 105, 290, { align: 'center' });
+                doc.text('La Chaparrita - Sistema de Gestión de Inventario', 105, 285, { align: 'center' });
             }
 
             // Guardar

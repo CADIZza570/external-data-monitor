@@ -2414,7 +2414,7 @@ def get_critical_products():
                     ELSE 'ok'
                 END as status
             FROM products
-            WHERE stock <= 5
+            WHERE stock <= 10
             ORDER BY stock ASC, days_to_stockout ASC, last_updated DESC
 
         ''').fetchall()
