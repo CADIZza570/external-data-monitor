@@ -1552,12 +1552,16 @@ def webhook_shopify():
             }
         # Obtener topic (tipo de evento)
         topic = request.headers.get('X-Shopify-Topic', 'simulation/test')
-        shop_domain = request.headers.get('X-Shopify-Shop-Domain', 'localhost')
-        
-        logger.info(f"📥 Webhook recibido: {topic} de {shop_domain} (simulation={simulation})")
-        
-        # Parsear payload
+
+        # Parsear payload primero
         payload = request.get_json()
+
+        # Obtener shop_domain: primero del payload, luego del header, finalmente localhost
+        shop_domain = payload.get('shop_domain') if payload else None
+        if not shop_domain:
+            shop_domain = request.headers.get('X-Shopify-Shop-Domain', 'localhost')
+
+        logger.info(f"📥 Webhook recibido: {topic} de {shop_domain} (simulation={simulation})")
         
         # ✅ Mejora v2.5: Validación estricta de payload
         if not payload:
