@@ -1787,17 +1787,23 @@ Recomendación: ${product.daysToStockout <= 3 ? '⚠️ Reponer inmediatamente' 
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
 
-            // Header con logo
-            doc.setFillColor(26, 26, 26);
-            doc.rect(0, 0, 210, 40, 'F');
-            doc.setTextColor(212, 175, 55);
-            doc.setFontSize(24);
-            doc.text('Smart Inventory Pro', 20, 25);
-            doc.setFontSize(10);
-            doc.setTextColor(255, 255, 255);
-            doc.text(`Reporte generado: ${new Date().toLocaleString('es-ES')}`, 20, 32);
+            // Header sin franja negra (fondo blanco)
+            doc.setTextColor(212, 175, 55); // Dorado
+            doc.setFontSize(26);
+            doc.setFont(undefined, 'bold');
+            doc.text('La Chaparrita', 20, 20);
 
-            let y = 50;
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100); // Gris
+            doc.setFont(undefined, 'normal');
+            doc.text(`Reporte de Inventario - ${new Date().toLocaleString('es-ES')}`, 20, 28);
+
+            // Línea separadora dorada
+            doc.setDrawColor(212, 175, 55);
+            doc.setLineWidth(0.5);
+            doc.line(20, 32, 190, 32);
+
+            let y = 45;
 
             // Métricas globales
             doc.setFontSize(16);
