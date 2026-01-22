@@ -2286,6 +2286,57 @@ def dashboard():
 # 📦 ENDPOINTS DE PRODUCTOS (PARA EL DASHBOARD)
 # ============================================================
 
+@app.route('/api/shops', methods=['GET'])
+def get_shops():
+    """
+    Devuelve la lista de tiendas activas que han enviado webhooks.
+    Usado por el filtro de tiendas en el dashboard.
+    """
+    try:
+        from database import get_db_connection
+
+        conn = get_db_connection()
+
+        # Obtener todas las tiendas únicas de los webhooks
+        shops_data = conn.execute('''
+            SELECT DISTINCT shop
+            FROM webhooks
+            WHERE shop IS NOT NULL
+            ORDER BY shop
+        ''').fetchall()
+
+        conn.close()
+
+        # Convertir a formato legible
+        shops = []
+        for row in shops_data:
+            shop_domain = row['shop']
+            # Extraer nombre legible del dominio
+            shop_name = shop_domain.replace('.myshopify.com', '').replace('-', ' ').title()
+            shop_id = shop_domain.replace('.myshopify.com', '')
+
+            shops.append({
+                'id': shop_id,
+                'name': shop_name,
+                'domain': shop_domain
+            })
+
+        logger.info(f"✅ API /api/shops: Returning {len(shops)} shops")
+
+        return jsonify({
+            "status": "success",
+            "count": len(shops),
+            "shops": shops
+        }), 200
+
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo tiendas: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "shops": []
+        }), 500
+
 @app.route('/api/products', methods=['GET'])
 def get_products():
     """

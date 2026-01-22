@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Inventory Alerts - Torre de Control</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Smart Inventory Alerts - Torre de Control v2.1</title>
     <style>
         /* ========================================
            ESTILOS BASE - Sistema de Diseño SaaS
@@ -1672,18 +1675,54 @@
         
         function exportCriticalProducts() {
             if (criticalProducts.length === 0) {
-                alert('No hay productos críticos para exportar');
+                alert('No hay productos para exportar');
                 return;
             }
-            
-            const timestamp = new Date().toISOString().split('T')[0];
-            let csv = 'Producto,SKU,Stock,Velocity,Días para Stockout,Estado,Tienda\n';
-            
-            criticalProducts.forEach(p => {
-                csv += `"${p.name}","${p.sku}",${p.stock},${p.velocity},${p.daysToStockout},${p.status.toUpperCase()},${p.shop || ''}\n`;
+
+            // ✅ APLICAR LOS MISMOS FILTROS QUE LA TABLA
+            const statusFilter = document.getElementById('status-filter').value;
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const shopFilter = document.getElementById('shop-filter').value;
+
+            const filteredProducts = criticalProducts.filter(p => {
+                const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
+                const matchesSearch = p.name.toLowerCase().includes(searchTerm) ||
+                                     p.sku.toLowerCase().includes(searchTerm);
+                const matchesShop = shopFilter === 'all' ||
+                                   (p.shop && p.shop.includes(shopFilter));
+                return matchesStatus && matchesSearch && matchesShop;
             });
-            
-            downloadCSV(csv, `productos_criticos_${timestamp}.csv`);
+
+            if (filteredProducts.length === 0) {
+                alert('No hay productos con los filtros actuales para exportar');
+                return;
+            }
+
+            const timestamp = new Date().toISOString().split('T')[0];
+
+            // Header con más información Cash Flow
+            let csv = 'Producto,SKU,Stock,Costo,Precio,Margen %,Velocity (ud/día),Categoría,Días Stockout,Días sin Venta,Estado,Tienda\n';
+
+            filteredProducts.forEach(p => {
+                const costPrice = p.cost_price || 0;
+                const price = p.price || 0;
+                const marginPercent = p.margin_percent || 0;
+                const velocity = p.velocity_daily || 0;
+                const category = p.category || 'N/A';
+                const daysToStockout = p.days_to_stockout || 'N/A';
+                const daysSinceSale = p.days_since_sale || 'N/A';
+
+                csv += `"${p.name}","${p.sku}",${p.stock},$${costPrice.toFixed(2)},$${price.toFixed(2)},${marginPercent.toFixed(1)}%,${velocity.toFixed(2)},${category},${daysToStockout},${daysSinceSale},${p.status.toUpperCase()},"${p.shop || ''}"\n`;
+            });
+
+            // Nombre de archivo según filtro
+            let filterName = 'productos';
+            if (statusFilter === 'critical') filterName = 'productos_criticos';
+            else if (statusFilter === 'warning') filterName = 'productos_stock_bajo';
+            else if (statusFilter === 'ok') filterName = 'productos_normales';
+            else if (statusFilter === 'out_of_stock') filterName = 'productos_agotados';
+
+            downloadCSV(csv, `${filterName}_${timestamp}.csv`);
         }
         
         function downloadCSV(content, filename) {
