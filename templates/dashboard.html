@@ -242,7 +242,144 @@
         .stat-card.warning { border-left: 4px solid var(--warning); }
         .stat-card.success { border-left: 4px solid var(--success); }
         .stat-card.info { border-left: 4px solid var(--info); }
-        
+
+        /* ========================================
+           WIDGET DE INVENTARIO EN TIEMPO REAL 🧠
+           ======================================== */
+        .inventory-widget {
+            background: linear-gradient(135deg, var(--black-light) 0%, var(--gray-200) 100%);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 24px;
+            border: 2px solid var(--gold);
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
+        }
+
+        .inventory-widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .inventory-widget-header h2 {
+            font-size: 18px;
+            color: var(--gold);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .inventory-widget-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .inventory-status {
+            font-size: 12px;
+            color: var(--gray-600);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .inventory-status.loading { color: var(--info); }
+        .inventory-status.success { color: var(--success); }
+        .inventory-status.error { color: var(--danger); }
+
+        .inventory-items-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .inventory-item {
+            background: var(--black-lighter);
+            border-radius: 8px;
+            padding: 12px;
+            border-left: 3px solid var(--gray-400);
+            transition: all 0.2s ease;
+        }
+
+        .inventory-item:hover {
+            transform: translateX(4px);
+            border-left-color: var(--gold);
+        }
+
+        .inventory-item-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--gray-800);
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .inventory-item-details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--gray-600);
+        }
+
+        .inventory-item-stock {
+            font-weight: 600;
+        }
+
+        .inventory-item-stock.ok { color: var(--success); }
+        .inventory-item-stock.warning { color: var(--warning); }
+        .inventory-item-stock.critical { color: var(--danger); }
+
+        .inventory-empty {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray-500);
+        }
+
+        .btn-refresh {
+            background: var(--gold);
+            color: var(--black);
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-refresh:hover {
+            background: var(--gold-dark);
+            transform: scale(1.05);
+        }
+
+        .btn-refresh:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-refresh .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--black);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         /* ========================================
            TARJETAS Y CONTENIDO
            ======================================== */
@@ -712,7 +849,38 @@
             </svg>
             <p><strong>🔒 Seguridad:</strong> Este dashboard muestra datos sensibles. Asegúrate de que solo personas autorizadas tengan acceso a esta URL.</p>
         </div>
-        
+
+        <!-- ========================================
+             WIDGET INVENTARIO EN TIEMPO REAL 🧠
+             ======================================== -->
+        <div class="inventory-widget">
+            <div class="inventory-widget-header">
+                <h2>
+                    <span>📦</span>
+                    Inventario Shopify (Tiempo Real)
+                </h2>
+                <div class="inventory-widget-actions">
+                    <div class="inventory-status" id="inventory-status">
+                        <span>💤</span>
+                        <span id="inventory-status-text">Presiona actualizar</span>
+                    </div>
+                    <button class="btn-refresh" id="btn-refresh-inventory" onclick="refreshInventory(true)">
+                        <span id="refresh-icon">🔄</span>
+                        <span>Actualizar</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="inventory-items-grid" id="inventory-items-grid">
+                <div class="inventory-empty">
+                    <p>📦 Presiona "Actualizar" para cargar inventario desde Shopify</p>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--gray-500);">
+                        🧠 Smart: Solo actualiza cuando detecta cambios en webhooks
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <!-- Tarjetas de estadísticas -->
         <div class="stats-grid">
             <div class="stat-card info">
@@ -1046,7 +1214,166 @@
                 `;
             }
         }
-        
+
+        // ========================================
+        // 🧠 WIDGET SMART: INVENTARIO EN TIEMPO REAL
+        // ========================================
+
+        let inventoryRefreshTimeout = null;
+
+        /**
+         * Refresca el inventario desde Shopify
+         * @param {boolean} force - Fuerza actualización ignorando caché
+         */
+        async function refreshInventory(force = false) {
+            const btn = document.getElementById('btn-refresh-inventory');
+            const statusEl = document.getElementById('inventory-status');
+            const statusText = document.getElementById('inventory-status-text');
+            const refreshIcon = document.getElementById('refresh-icon');
+            const gridEl = document.getElementById('inventory-items-grid');
+
+            // Prevenir doble-click
+            if (btn.disabled) return;
+
+            btn.disabled = true;
+            statusEl.className = 'inventory-status loading';
+            statusText.textContent = 'Cargando...';
+            refreshIcon.innerHTML = '<span class="spinner"></span>';
+
+            try {
+                const shop = document.getElementById('shop-filter')?.value || 'chaparrita-boots.myshopify.com';
+                const url = `${CONFIG.API_BASE}/api/shopify/inventory-snapshot?shop=${shop}&force=${force}`;
+
+                console.log(`🧠 Fetching inventory: ${url}`);
+
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    const items = result.data || [];
+
+                    // Actualizar UI
+                    if (items.length === 0) {
+                        gridEl.innerHTML = `
+                            <div class="inventory-empty">
+                                <p>📦 No hay productos en esta tienda</p>
+                            </div>
+                        `;
+                    } else {
+                        gridEl.innerHTML = items.map(item => {
+                            const stockClass = item.stock === 0 ? 'critical' :
+                                             item.stock <= 5 ? 'warning' : 'ok';
+
+                            return `
+                                <div class="inventory-item">
+                                    <div class="inventory-item-name" title="${item.name}">
+                                        ${item.name}
+                                    </div>
+                                    <div class="inventory-item-details">
+                                        <span>SKU: ${item.sku}</span>
+                                        <span class="inventory-item-stock ${stockClass}">
+                                            ${item.stock} unidades
+                                        </span>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+
+                    // Mostrar estado
+                    const sourceIcon = result.source === 'cache' ? '💾' :
+                                      result.source === 'shopify_api' ? '🔄' : '📦';
+                    const sourceText = result.source === 'cache' ? 'Caché' :
+                                      result.source === 'shopify_api' ? 'Shopify API' : 'Webhooks';
+
+                    statusEl.className = 'inventory-status success';
+                    statusText.textContent = `${sourceIcon} ${sourceText} (${items.length} items)`;
+                    refreshIcon.textContent = '✅';
+
+                    console.log(`✅ Inventory loaded: ${items.length} items from ${result.source}`);
+
+                    // Auto-reset ícono después de 2 segundos
+                    setTimeout(() => {
+                        refreshIcon.textContent = '🔄';
+                    }, 2000);
+
+                } else {
+                    throw new Error(result.message || 'Unknown error');
+                }
+
+            } catch (error) {
+                console.error('❌ Error loading inventory:', error);
+                statusEl.className = 'inventory-status error';
+                statusText.textContent = '❌ Error al cargar';
+                refreshIcon.textContent = '⚠️';
+
+                gridEl.innerHTML = `
+                    <div class="inventory-empty">
+                        <p>❌ Error al cargar inventario</p>
+                        <p style="font-size: 11px; margin-top: 8px; color: var(--gray-500);">
+                            ${error.message}
+                        </p>
+                    </div>
+                `;
+
+                setTimeout(() => {
+                    refreshIcon.textContent = '🔄';
+                }, 3000);
+
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        /**
+         * Auto-refresh inteligente basado en actividad del usuario
+         */
+        function startSmartInventoryRefresh() {
+            let lastActivity = Date.now();
+            let isVisible = !document.hidden;
+
+            // Detectar visibilidad de la pestaña
+            document.addEventListener('visibilitychange', () => {
+                isVisible = !document.hidden;
+                console.log(`👀 Tab ${isVisible ? 'visible' : 'hidden'}`);
+            });
+
+            // Detectar actividad del usuario (mouse, teclado, scroll)
+            const activityEvents = ['mousemove', 'keydown', 'scroll', 'click'];
+            activityEvents.forEach(event => {
+                document.addEventListener(event, () => {
+                    lastActivity = Date.now();
+                }, { passive: true });
+            });
+
+            // Smart polling (cada 5 minutos si usuario activo)
+            setInterval(() => {
+                const timeSinceActivity = Date.now() - lastActivity;
+                const isUserActive = timeSinceActivity < 10 * 60 * 1000; // 10 minutos
+
+                // Solo auto-refresh si:
+                // 1. Usuario está activo (interactuó en últimos 10 min)
+                // 2. Pestaña es visible
+                if (isUserActive && isVisible) {
+                    console.log('🧠 Smart auto-refresh: User active & tab visible');
+                    refreshInventory(false); // false = usa caché si no hay webhooks
+                } else {
+                    console.log('💤 Smart auto-refresh: Paused (inactive)');
+                }
+            }, 5 * 60 * 1000); // Cada 5 minutos
+        }
+
+        // Iniciar smart refresh después de cargar dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🧠 Inicializando smart inventory refresh...');
+            startSmartInventoryRefresh();
+        });
+
         // ========================================
         // CARGAR ESTADÍSTICAS
         // ========================================
