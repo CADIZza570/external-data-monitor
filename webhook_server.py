@@ -2374,7 +2374,6 @@ def get_inventory_snapshot():
         }
     """
     try:
-        import requests
         from database import get_db_connection
 
         # Obtener parámetros
@@ -2417,59 +2416,37 @@ def get_inventory_snapshot():
                 "webhooks_detected": False
             }), 200
 
-        # ============ PASO 3: Llamar a Shopify API ============
-        logger.info(f"🔄 Actualizando desde Shopify API (force={force_refresh}, webhooks={webhooks_detected})")
+        # ============ PASO 3: Obtener desde base de datos ============
+        logger.info(f"🔄 Actualizando desde base de datos (force={force_refresh}, webhooks={webhooks_detected})")
 
-        # Obtener credenciales
-        shopify_token = os.getenv('SHOPIFY_ACCESS_TOKEN_CHAPARRITA') or os.getenv('SHOPIFY_TOKEN')
-        shopify_api_version = os.getenv('SHOPIFY_API_VERSION', '2024-01')
-
-        if not shopify_token:
-            logger.error("❌ SHOPIFY_TOKEN no configurado")
-            return jsonify({
-                "status": "error",
-                "message": "Shopify credentials not configured",
-                "data": []
-            }), 500
-
-        # Llamar a Shopify Admin API - Inventory Levels
-        # Endpoint: /admin/api/2024-01/inventory_levels.json
-        url = f"https://{shop}/admin/api/{shopify_api_version}/products.json"
-        headers = {
-            "X-Shopify-Access-Token": shopify_token,
-            "Content-Type": "application/json"
-        }
-        params = {
-            "limit": 50,  # Solo los primeros 50 productos
-            "fields": "id,title,variants"  # Solo campos necesarios
-        }
-
-        response = requests.get(url, headers=headers, params=params, timeout=10)
-
-        if response.status_code != 200:
-            logger.error(f"❌ Shopify API error: {response.status_code} - {response.text}")
-            return jsonify({
-                "status": "error",
-                "message": f"Shopify API returned {response.status_code}",
-                "data": []
-            }), 500
-
-        data = response.json()
-        products = data.get('products', [])
+        # Obtener productos de la base de datos (webhooks)
+        conn = get_db_connection()
+        products_db = conn.execute('''
+            SELECT
+                product_id,
+                name,
+                sku,
+                stock,
+                price
+            FROM products
+            WHERE shop = ?
+            ORDER BY name, sku
+            LIMIT 50
+        ''', (shop,)).fetchall()
+        conn.close()
 
         # Transformar a formato simple
         inventory_items = []
-        for product in products:
-            for variant in product.get('variants', []):
-                inventory_items.append({
-                    "product_id": variant['id'],
-                    "name": f"{product['title']} - {variant['title']}" if variant['title'] != 'Default Title' else product['title'],
-                    "sku": variant.get('sku', 'N/A'),
-                    "stock": variant.get('inventory_quantity', 0),
-                    "price": float(variant.get('price', 0))
-                })
+        for row in products_db:
+            inventory_items.append({
+                "product_id": row['product_id'],
+                "name": row['name'],
+                "sku": row['sku'] or 'N/A',
+                "stock": row['stock'] or 0,
+                "price": float(row['price'] or 0)
+            })
 
-        logger.info(f"✅ Shopify API: {len(inventory_items)} items obtenidos")
+        logger.info(f"✅ Database: {len(inventory_items)} items obtenidos")
 
         # ============ PASO 4: Actualizar caché ============
         inventory_cache["data"] = inventory_items
@@ -2478,19 +2455,11 @@ def get_inventory_snapshot():
         return jsonify({
             "status": "success",
             "data": inventory_items,
-            "source": "shopify_api",
+            "source": "database",
             "cached_at": current_time,
             "webhooks_detected": webhooks_detected,
             "items_count": len(inventory_items)
         }), 200
-
-    except requests.Timeout:
-        logger.error("❌ Shopify API timeout")
-        return jsonify({
-            "status": "error",
-            "message": "Shopify API timeout - try again",
-            "data": []
-        }), 504
 
     except Exception as e:
         logger.error(f"❌ Error en inventory-snapshot: {e}", exc_info=True)
