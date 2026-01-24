@@ -1102,9 +1102,9 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
             logger.info(f"📊 {analytics_msg.split(chr(10))[0]}")  # Log primera línea
 
         if dedup.should_send_alert(
-            "low_stock", 
+            "low_stock",
             ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
-            product_id=product_id,
+            sku=product.get('sku', f'prod_{product_id}'),  # Usar SKU en lugar de product_id
             shop=shop_name
         ):
             # ✅ USAR MENSAJE DEL ADAPTER
@@ -1153,7 +1153,7 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
             dedup.mark_sent(
                 "low_stock",
                 ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
-                product_id=product_id,
+                sku=product.get('sku', f'prod_{product_id}'),  # Usar SKU en lugar de product_id
                 shop=shop_name
             )
             
