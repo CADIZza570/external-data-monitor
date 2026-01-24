@@ -74,7 +74,7 @@ GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 
 # Importar funciones de base de datos
-from database import save_webhook, get_webhooks, get_webhook_count
+from database import save_webhook, get_webhooks, get_webhook_count, save_product
 # ✅ NUEVO: Sistema anti-duplicados
 from alert_deduplication import get_deduplicator, ALERT_TTL_CONFIG
 from business_adapter import BusinessAdapter  # ← NUEVA
