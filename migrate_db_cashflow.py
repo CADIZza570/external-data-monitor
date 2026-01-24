@@ -124,6 +124,21 @@ def migrate_database():
         ''')
         print("✅ Tabla 'orders_history' verificada/creada")
 
+        # Crear tabla de historial de ventas (para trending)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sales_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sku TEXT NOT NULL,
+                product_name TEXT,
+                quantity INTEGER NOT NULL,
+                sale_date TIMESTAMP NOT NULL,
+                order_id TEXT,
+                shop TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        print("✅ Tabla 'sales_history' verificada/creada")
+
         conn.commit()
         conn.close()
 

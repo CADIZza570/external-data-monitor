@@ -401,6 +401,39 @@ def save_product(product_id, name, sku, stock, price, shop, cost_price=None,
         traceback.print_exc()
         return False
 
+def save_sale(sku, product_name, quantity, order_id, shop):
+    """
+    Guarda venta en sales_history para trending.
+
+    Args:
+        sku: SKU del producto vendido
+        product_name: Nombre del producto
+        quantity: Cantidad vendida
+        order_id: ID de la orden
+        shop: Tienda
+
+    Returns:
+        True si exitoso, False si falla
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+
+        conn.execute('''
+            INSERT INTO sales_history (sku, product_name, quantity, sale_date, order_id, shop)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
+        ''', (sku, product_name, quantity, order_id, shop))
+
+        conn.commit()
+        conn.close()
+
+        return True
+
+    except Exception as e:
+        print(f"❌ Error guardando venta {sku}: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 # ============================================================
 # AUTO-INICIALIZACIÓN
 # ============================================================

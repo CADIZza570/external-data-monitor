@@ -74,7 +74,7 @@ GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 
 # Importar funciones de base de datos
-from database import save_webhook, get_webhooks, get_webhook_count, save_product
+from database import save_webhook, get_webhooks, get_webhook_count, save_product, save_sale
 # ✅ NUEVO: Sistema anti-duplicados
 from alert_deduplication import get_deduplicator, ALERT_TTL_CONFIG
 from business_adapter import BusinessAdapter  # ← NUEVA
@@ -615,7 +615,21 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
         shipping_address = ", ".join(address_parts) if address_parts else "Sin dirección de envío"
         
         logger.info(f"🛒 Nueva orden recibida: #{order_number} - {customer_name} - ${total_price}")
-        
+
+        # ============= NUEVO: Guardar ventas en sales_history =============
+        for item in products_summary:
+            sku = item.get('sku', 'N/A')
+            if sku and sku != 'N/A':
+                save_sale(
+                    sku=sku,
+                    product_name=item.get('name', 'Sin nombre'),
+                    quantity=item.get('quantity', 0),
+                    order_id=str(order_id),
+                    shop=shop_name
+                )
+                logger.info(f"💾 Venta guardada: {sku} x{item.get('quantity', 0)}")
+        # ==================================================================
+
         # Enviar a Discord (ahora con notas)
         send_discord_order_alert(
             order_number, customer_name, customer_email, customer_phone,
