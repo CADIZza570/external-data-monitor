@@ -516,3 +516,89 @@ def cashflow_summary():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ============================================================
+# ENDPOINT: TRENDING DE TALLAS
+# ============================================================
+
+@cashflow_bp.route('/api/analytics/trending-sizes', methods=['GET'])
+def get_trending_sizes():
+    """
+    Retorna trending de ventas por SKU (últimos 30 días).
+
+    Query params:
+        - days: Días a analizar (default: 30)
+        - limit: Top N productos (default: 10)
+
+    Returns:
+        {
+            "success": true,
+            "period_days": 30,
+            "total_sales": 150,
+            "trending": [
+                {
+                    "sku": "SOMB-ARCO-09",
+                    "product_name": "Sombrero Arcoiris - Talla 9",
+                    "sales_count": 45,
+                    "percentage": 30.0,
+                    "rank": 1
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        days = request.args.get('days', 30, type=int)
+        limit = request.args.get('limit', 10, type=int)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Obtener ventas agrupadas por SKU (últimos N días)
+        cursor.execute('''
+            SELECT
+                sku,
+                product_name,
+                SUM(quantity) as sales_count
+            FROM sales_history
+            WHERE sale_date >= datetime('now', '-' || ? || ' days')
+            GROUP BY sku, product_name
+            ORDER BY sales_count DESC
+            LIMIT ?
+        ''', (days, limit))
+
+        results = cursor.fetchall()
+
+        # Calcular total de ventas
+        cursor.execute('''
+            SELECT SUM(quantity) as total
+            FROM sales_history
+            WHERE sale_date >= datetime('now', '-' || ? || ' days')
+        ''', (days,))
+        total_sales = cursor.fetchone()['total'] or 0
+
+        conn.close()
+
+        # Formatear resultados
+        trending = []
+        for idx, row in enumerate(results, 1):
+            sales_count = row['sales_count']
+            percentage = (sales_count / total_sales * 100) if total_sales > 0 else 0
+
+            trending.append({
+                "rank": idx,
+                "sku": row['sku'],
+                "product_name": row['product_name'],
+                "sales_count": sales_count,
+                "percentage": round(percentage, 1)
+            })
+
+        return jsonify({
+            "success": True,
+            "period_days": days,
+            "total_sales": total_sales,
+            "trending": trending
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
