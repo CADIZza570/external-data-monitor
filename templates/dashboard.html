@@ -1198,7 +1198,7 @@
                 select.innerHTML = '<option value="all">🏪 Todas las tiendas</option>';
                 
                 shops.forEach(shop => {
-                    select.innerHTML += `<option value="${shop.id}">${shop.name}</option>`;
+                    select.innerHTML += `<option value="${shop.domain}">${shop.name}</option>`;
                 });
                 
                 console.log(`✅ ${shops.length} tiendas cargadas`);
