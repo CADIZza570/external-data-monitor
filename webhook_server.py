@@ -3060,9 +3060,70 @@ def debug_webhooks():
             "message": str(e),
             "webhooks": []
         }), 500
-    
+
 # ============================================================
-# 🚀 ENTRY POINT 
+# 🔍 ENDPOINT DE DIAGNÓSTICO - DATA_DIR
+# ============================================================
+@app.route('/api/debug/data-dir', methods=['GET'])
+def debug_data_dir():
+    """
+    Diagnóstico de configuración de DATA_DIR y persistencia de base de datos
+    """
+    import os
+    from database import DB_FILE, DATA_DIR
+
+    data_dir_env = os.getenv('DATA_DIR', 'NOT SET')
+    db_file_path = DB_FILE
+
+    # Verificar si DB existe
+    db_exists = os.path.exists(db_file_path)
+    db_size = os.path.getsize(db_file_path) if db_exists else 0
+
+    # Verificar directorio /data/
+    data_dir_exists = os.path.exists('/data')
+    data_dir_writable = os.access('/data', os.W_OK) if data_dir_exists else False
+
+    # Verificar si DB está en volumen persistente
+    db_is_persistent = db_file_path.startswith('/data/')
+
+    # Contar productos en DB
+    product_count = 0
+    webhook_count = 0
+    if db_exists:
+        try:
+            from database import get_db_connection
+            conn = get_db_connection()
+            product_count = conn.execute('SELECT COUNT(*) FROM products').fetchone()[0]
+            webhook_count = conn.execute('SELECT COUNT(*) FROM webhooks').fetchone()[0]
+            conn.close()
+        except:
+            pass
+
+    return jsonify({
+        "status": "success",
+        "config": {
+            "DATA_DIR_env": data_dir_env,
+            "DATA_DIR_code": DATA_DIR,
+            "DB_FILE": db_file_path
+        },
+        "filesystem": {
+            "db_exists": db_exists,
+            "db_size_bytes": db_size,
+            "data_dir_exists": data_dir_exists,
+            "data_dir_writable": data_dir_writable
+        },
+        "persistence": {
+            "db_is_persistent": db_is_persistent,
+            "warning": None if db_is_persistent else "⚠️ Database is in ephemeral storage! Will be lost on redeploy."
+        },
+        "data": {
+            "products": product_count,
+            "webhooks": webhook_count
+        }
+    }), 200
+
+# ============================================================
+# 🚀 ENTRY POINT
 # ============================================================
 
 if __name__ == "__main__":
