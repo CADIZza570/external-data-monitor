@@ -353,6 +353,15 @@ def save_product(product_id, name, sku, stock, price, shop, cost_price=None,
 
         conn = sqlite3.connect(DB_FILE)
 
+        # ✅ NUEVO: Debug logging
+        print(f"🔍 DEBUG: Guardando producto en {DB_FILE}")
+        print(f"   - product_id: {product_id}")
+        print(f"   - sku: {sku}")
+        print(f"   - stock: {stock}")
+        print(f"   - shop: {shop}")
+        print(f"   - velocity_daily: {velocity_daily}")
+        print(f"   - category: {category}")
+
         # Si hay ventas recientes, actualizar last_sale_date
         # Si total_sales_30d > 0, asumimos que hubo venta hoy
         last_sale_date = datetime.now().isoformat() if total_sales_30d and total_sales_30d > 0 else None
@@ -380,9 +389,16 @@ def save_product(product_id, name, sku, stock, price, shop, cost_price=None,
 
         conn.commit()
         conn.close()
+
+        # ✅ NUEVO: Log exitoso
+        print(f"✅ DEBUG: Producto {sku} guardado exitosamente")
         return True
+
     except Exception as e:
+        # ✅ MEJORADO: Log detallado del error
         print(f"❌ Error guardando producto {product_id}: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 # ============================================================

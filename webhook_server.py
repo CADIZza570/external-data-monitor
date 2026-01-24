@@ -1714,29 +1714,49 @@ def webhook_shopify():
                 # =============================================================================
         # GUARDAR PRODUCTOS EN TABLA SQLite (PARA DASHBOARD)
         # =============================================================================
-        try:
-            from database import get_db_connection
-            
-            conn = get_db_connection()
-            
-            for _, row in df_clean.iterrows():
-                product_id = str(row.get('product_id', ''))
-                name = row.get('name', 'Sin nombre')
-                sku = row.get('sku', f'PROD-{product_id}')
-                stock = int(row.get('stock', 0))
-                price = float(row.get('price', 0)) if row.get('price') else 0
-                
-                conn.execute('''
-                    INSERT OR REPLACE INTO products (product_id, name, sku, stock, price, shop, last_updated)
-                    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ''', (product_id, name, sku, stock, price, shop_domain))
-            
-            conn.commit()
-            conn.close()
-            logger.info(f"✅ {len(df_clean)} productos guardados en SQLite")
-            
-        except Exception as db_error:
-            logger.warning(f"⚠️ Error guardando en SQLite: {db_error}")
+        logger.info(f"💾 Guardando {len(df_clean)} productos en SQLite...")
+
+        saved_count = 0
+        failed_count = 0
+
+        for _, row in df_clean.iterrows():
+            product_id = str(row.get('product_id', ''))
+            name = row.get('name', 'Sin nombre')
+            sku = row.get('sku', f'PROD-{product_id}')
+            stock = int(row.get('stock', 0))
+            price = float(row.get('price', 0)) if row.get('price') else 0
+
+            # Usar función save_product() que maneja UPSERT y auto-calcula velocity/category
+            try:
+                result = save_product(
+                    product_id=product_id,
+                    name=name,
+                    sku=sku,
+                    stock=stock,
+                    price=price,
+                    shop=shop_domain,
+                    cost_price=None,  # Se actualizará vía Cash Flow API
+                    total_sales_30d=None,  # Se calculará desde orders_history
+                    velocity_daily=None,  # Auto-calculado por save_product()
+                    category=None  # Auto-calculado por save_product()
+                )
+
+                if result:
+                    saved_count += 1
+                    logger.debug(f"✅ Producto guardado: {sku} (stock: {stock})")
+                else:
+                    failed_count += 1
+                    logger.warning(f"⚠️ No se pudo guardar producto: {sku}")
+
+            except Exception as e:
+                failed_count += 1
+                logger.error(f"❌ Error guardando producto {sku}: {e}", exc_info=True)
+
+        # Log final con conteo real
+        if saved_count > 0:
+            logger.info(f"✅ {saved_count} productos guardados exitosamente en SQLite")
+        if failed_count > 0:
+            logger.warning(f"⚠️ {failed_count} productos fallaron al guardar")
         # =============================================================================
         
         # ============= NUEVO: Log evento system.check_completed =============
