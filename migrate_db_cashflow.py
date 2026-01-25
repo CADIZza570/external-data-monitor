@@ -139,6 +139,26 @@ def migrate_database():
         ''')
         print("✅ Tabla 'sales_history' verificada/creada")
 
+        # Crear tabla de insights (para cacheo de análisis)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS insights (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL,
+                data TEXT NOT NULL,
+                generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL,
+                UNIQUE(type)
+            )
+        ''')
+        print("✅ Tabla 'insights' verificada/creada")
+
+        # Crear índice para búsquedas eficientes de insights
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_insights_type_expires
+            ON insights(type, expires_at)
+        ''')
+        print("✅ Índice 'idx_insights_type_expires' verificado/creado")
+
         conn.commit()
         conn.close()
 

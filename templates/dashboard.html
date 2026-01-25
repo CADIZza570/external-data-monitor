@@ -1034,6 +1034,86 @@
             </div>
         </div>
 
+        <!-- Dead Stock -->
+        <div class="card fade-in">
+            <div class="card-header">
+                <h2>💀 Dead Stock (Sin ventas +90 días)</h2>
+                <span id="dead-stock-timestamp" style="font-size: 12px; opacity: 0.6;"></span>
+            </div>
+            <div class="card-body">
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Producto</th>
+                                <th>Stock</th>
+                                <th>Días sin venta</th>
+                                <th>Capital bloqueado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dead-stock-tbody">
+                            <tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 16px; padding: 12px; background: var(--danger-light, #fee); border-radius: 8px; text-align: center;">
+                    <strong>Total Capital Bloqueado:</strong>
+                    <span id="dead-stock-total" style="color: var(--danger, #e74c3c); font-size: 20px; font-weight: bold; margin-left: 8px;">$0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Análisis de Márgenes -->
+        <div class="card fade-in">
+            <div class="card-header">
+                <h2>💰 Análisis de Márgenes</h2>
+                <span id="margin-timestamp" style="font-size: 12px; opacity: 0.6;"></span>
+            </div>
+            <div class="card-body">
+                <div style="margin-bottom: 24px; padding: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; text-align: center; color: white;">
+                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 4px;">Margen Promedio</div>
+                    <div id="margin-average" style="font-size: 32px; font-weight: bold;">0%</div>
+                </div>
+
+                <h3 style="color: var(--success, #27ae60); margin: 24px 0 12px 0; font-size: 16px;">✅ Mejores Márgenes (Top 5)</h3>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Producto</th>
+                                <th>Precio</th>
+                                <th>Costo</th>
+                                <th>Margen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="best-margin-tbody">
+                            <tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 style="color: var(--danger, #e74c3c); margin: 24px 0 12px 0; font-size: 16px;">⚠️ Peores Márgenes (Top 5)</h3>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Producto</th>
+                                <th>Precio</th>
+                                <th>Costo</th>
+                                <th>Margen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="worst-margin-tbody">
+                            <tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Grid de 2 columnas: Gráfico y Analytics -->
         <div class="grid-2">
             <div class="card slide-in">
@@ -1212,7 +1292,9 @@
                     loadCriticalProducts(),
                     loadCashFlowAnalytics(),
                     loadTrendingSizes(),
-                    loadRecommendations()
+                    loadRecommendations(),
+                    loadDeadStockInsight(),
+                    loadMarginInsight()
                 ]);
                 
                 const elapsed = Date.now() - startTime;
@@ -1693,6 +1775,125 @@
                 document.getElementById('avg-margin').textContent = `${(overall.avg_margin_percent || 0).toFixed(1)}%`;
                 document.getElementById('avg-velocity').textContent = `${(overall.avg_velocity_daily || 0).toFixed(2)} ud/día`;
                 document.getElementById('roi-total').textContent = `${(overall.roi_total_percent || 0).toFixed(1)}%`;
+            }
+        }
+
+        // ========================================
+        // INSIGHTS: DEAD STOCK
+        // ========================================
+        async function loadDeadStockInsight() {
+            try {
+                const response = await fetch(`${CONFIG.API_BASE}/api/insights/dead-stock`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    renderDeadStockTable(result.data);
+                    const timestamp = new Date(result.generated_at).toLocaleString('es-ES', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    });
+                    document.getElementById('dead-stock-timestamp').textContent =
+                        `${result.cached ? '📦 Cached' : '✨ Nuevo'} - ${timestamp}`;
+                }
+            } catch (error) {
+                console.error('❌ Error loading dead stock:', error);
+                document.getElementById('dead-stock-tbody').innerHTML =
+                    '<tr><td colspan="5" style="text-align:center;color:var(--danger);">Error cargando dead stock</td></tr>';
+            }
+        }
+
+        function renderDeadStockTable(data) {
+            const tbody = document.getElementById('dead-stock-tbody');
+
+            if (!data.products || data.products.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;opacity:0.6;">✅ No hay productos en dead stock</td></tr>';
+                document.getElementById('dead-stock-total').textContent = '$0';
+                return;
+            }
+
+            tbody.innerHTML = data.products.map(p => `
+                <tr>
+                    <td><code style="background:var(--gray-200);padding:4px 8px;border-radius:4px;">${escapeHtml(p.sku || 'N/A')}</code></td>
+                    <td>${escapeHtml(p.product_name || 'Sin nombre')}</td>
+                    <td style="font-weight:600;">${p.stock || 0}</td>
+                    <td style="color:var(--danger);font-weight:600;">
+                        ${p.days_without_sales ? p.days_without_sales + ' días' : 'Sin ventas'}
+                    </td>
+                    <td style="color:var(--danger);font-weight:700;font-size:15px;">
+                        $${(p.locked_capital || 0).toFixed(2)}
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('dead-stock-total').textContent =
+                `$${(data.total_locked_capital || 0).toFixed(2)}`;
+        }
+
+        // ========================================
+        // INSIGHTS: MARGIN ANALYSIS
+        // ========================================
+        async function loadMarginInsight() {
+            try {
+                const response = await fetch(`${CONFIG.API_BASE}/api/insights/margin`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    renderMarginTables(result.data);
+                    const timestamp = new Date(result.generated_at).toLocaleString('es-ES', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    });
+                    document.getElementById('margin-timestamp').textContent =
+                        `${result.cached ? '📦 Cached' : '✨ Nuevo'} - ${timestamp}`;
+                }
+            } catch (error) {
+                console.error('❌ Error loading margin:', error);
+                document.getElementById('best-margin-tbody').innerHTML =
+                    '<tr><td colspan="5" style="text-align:center;color:var(--danger);">Error cargando análisis</td></tr>';
+            }
+        }
+
+        function renderMarginTables(data) {
+            // Margen promedio
+            document.getElementById('margin-average').textContent =
+                `${(data.average_margin || 0).toFixed(1)}%`;
+
+            // Mejores márgenes
+            const bestTbody = document.getElementById('best-margin-tbody');
+            if (!data.best_margin || data.best_margin.length === 0) {
+                bestTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;opacity:0.6;">No hay datos</td></tr>';
+            } else {
+                bestTbody.innerHTML = data.best_margin.map(p => `
+                    <tr>
+                        <td><code style="background:var(--gray-200);padding:4px 8px;border-radius:4px;">${escapeHtml(p.sku || 'N/A')}</code></td>
+                        <td>${escapeHtml(p.product_name || 'Sin nombre')}</td>
+                        <td style="font-weight:600;">$${(p.price || 0).toFixed(2)}</td>
+                        <td style="font-weight:600;color:var(--brown);">$${(p.cost_price || 0).toFixed(2)}</td>
+                        <td style="color:var(--success);font-weight:700;font-size:15px;">
+                            ${(p.margin_percentage || 0).toFixed(1)}%
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Peores márgenes
+            const worstTbody = document.getElementById('worst-margin-tbody');
+            if (!data.worst_margin || data.worst_margin.length === 0) {
+                worstTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;opacity:0.6;">No hay datos</td></tr>';
+            } else {
+                worstTbody.innerHTML = data.worst_margin.map(p => `
+                    <tr>
+                        <td><code style="background:var(--gray-200);padding:4px 8px;border-radius:4px;">${escapeHtml(p.sku || 'N/A')}</code></td>
+                        <td>${escapeHtml(p.product_name || 'Sin nombre')}</td>
+                        <td style="font-weight:600;">$${(p.price || 0).toFixed(2)}</td>
+                        <td style="font-weight:600;color:var(--brown);">$${(p.cost_price || 0).toFixed(2)}</td>
+                        <td style="color:var(--danger);font-weight:700;font-size:15px;">
+                            ${(p.margin_percentage || 0).toFixed(1)}%
+                        </td>
+                    </tr>
+                `).join('');
             }
         }
 

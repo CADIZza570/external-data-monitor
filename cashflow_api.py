@@ -19,7 +19,8 @@ import sqlite3
 import csv
 import io
 import os
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
 
 # Crear Blueprint
 cashflow_bp = Blueprint('cashflow', __name__)
@@ -736,3 +737,206 @@ def get_purchase_recommendations():
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+
+# ============================================================================
+# INSIGHTS SYSTEM - MVP con 3 tipos básicos (Trending, Dead Stock, Margin)
+# ============================================================================
+
+def get_or_generate_insight(insight_type, generator_func):
+    """
+    Obtiene insight cacheado o genera nuevo si expiró (24h TTL).
+
+    Args:
+        insight_type: 'trending', 'dead_stock', 'margin'
+        generator_func: función que genera el insight
+
+    Returns:
+        dict con success, cached, generated_at, data
+    """
+    conn = get_db_connection()
+
+    try:
+        # Verificar si existe insight válido
+        cached = conn.execute("""
+            SELECT data, generated_at, expires_at
+            FROM insights
+            WHERE type = ? AND expires_at > datetime('now')
+        """, (insight_type,)).fetchone()
+
+        if cached:
+            return {
+                'success': True,
+                'cached': True,
+                'generated_at': cached['generated_at'],
+                'data': json.loads(cached['data'])
+            }
+
+        # Generar nuevo insight
+        insight_data = generator_func()
+
+        # Guardar con expiración 24h
+        expires_at = datetime.now() + timedelta(hours=24)
+
+        conn.execute("""
+            INSERT OR REPLACE INTO insights (type, data, expires_at)
+            VALUES (?, ?, ?)
+        """, (insight_type, json.dumps(insight_data), expires_at))
+
+        conn.commit()
+
+        return {
+            'success': True,
+            'cached': False,
+            'generated_at': datetime.now().isoformat(),
+            'data': insight_data
+        }
+
+    except Exception as e:
+        print(f"❌ Error en get_or_generate_insight({insight_type}): {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'data': None
+        }
+    finally:
+        conn.close()
+
+
+def generate_dead_stock_insight():
+    """
+    Detecta productos sin ventas en últimos 90 días.
+
+    Returns:
+        dict con products, total_locked_capital, count
+    """
+    conn = get_db_connection()
+
+    try:
+        dead_stock = conn.execute("""
+            SELECT
+                sku,
+                name as product_name,
+                stock,
+                price,
+                CAST((julianday('now') - julianday(last_sale_date)) AS INTEGER) as days_without_sales,
+                (stock * price) as locked_capital
+            FROM products
+            WHERE last_sale_date IS NULL
+               OR julianday('now') - julianday(last_sale_date) > 90
+            ORDER BY locked_capital DESC
+            LIMIT 10
+        """).fetchall()
+
+        total_locked = sum(row['locked_capital'] or 0 for row in dead_stock)
+
+        return {
+            'products': [dict(row) for row in dead_stock],
+            'total_locked_capital': round(total_locked, 2),
+            'count': len(dead_stock)
+        }
+
+    finally:
+        conn.close()
+
+
+def generate_margin_insight():
+    """
+    Analiza productos por margen de ganancia.
+
+    Returns:
+        dict con best_margin, worst_margin, average_margin, total_products_analyzed
+    """
+    conn = get_db_connection()
+
+    try:
+        margin_analysis = conn.execute("""
+            SELECT
+                sku,
+                name as product_name,
+                price,
+                cost_price,
+                (price - cost_price) as margin,
+                ROUND(((price - cost_price) / price) * 100, 2) as margin_percentage,
+                stock,
+                total_sales_30d,
+                ((price - cost_price) * COALESCE(total_sales_30d, 0)) as profit_30d
+            FROM products
+            WHERE cost_price IS NOT NULL AND cost_price > 0 AND price > 0
+            ORDER BY margin_percentage DESC
+        """).fetchall()
+
+        if not margin_analysis:
+            return {
+                'best_margin': [],
+                'worst_margin': [],
+                'average_margin': 0,
+                'total_products_analyzed': 0
+            }
+
+        # Top 5 mejores márgenes
+        best_margin = margin_analysis[:5]
+
+        # Top 5 peores márgenes
+        worst_margin = margin_analysis[-5:] if len(margin_analysis) >= 5 else []
+
+        # Margen promedio
+        avg_margin = sum(row['margin_percentage'] for row in margin_analysis) / len(margin_analysis)
+
+        return {
+            'best_margin': [dict(row) for row in best_margin],
+            'worst_margin': [dict(row) for row in worst_margin],
+            'average_margin': round(avg_margin, 2),
+            'total_products_analyzed': len(margin_analysis)
+        }
+
+    finally:
+        conn.close()
+
+
+# ============================================================================
+# INSIGHTS ENDPOINTS
+# ============================================================================
+
+@cashflow_bp.route('/api/insights/trending', methods=['GET'])
+def get_trending_insight():
+    """Retorna insight de productos trending (cacheado 24h)"""
+    def generator():
+        # Reutilizar lógica existente de trending
+        response = get_trending_sizes()
+        return response.get_json()
+
+    return jsonify(get_or_generate_insight('trending', generator))
+
+
+@cashflow_bp.route('/api/insights/dead-stock', methods=['GET'])
+def get_dead_stock_insight():
+    """Retorna insight de dead stock (cacheado 24h)"""
+    return jsonify(get_or_generate_insight('dead_stock', generate_dead_stock_insight))
+
+
+@cashflow_bp.route('/api/insights/margin', methods=['GET'])
+def get_margin_insight():
+    """Retorna insight de margin analysis (cacheado 24h)"""
+    return jsonify(get_or_generate_insight('margin', generate_margin_insight))
+
+
+@cashflow_bp.route('/api/insights/refresh', methods=['POST'])
+def refresh_insights():
+    """Fuerza regeneración de todos los insights"""
+    conn = get_db_connection()
+    try:
+        conn.execute("DELETE FROM insights")
+        conn.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Insights cache cleared. Will regenerate on next request.'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        conn.close()
