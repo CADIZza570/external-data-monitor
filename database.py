@@ -401,6 +401,115 @@ def save_product(product_id, name, sku, stock, price, shop, cost_price=None,
         traceback.print_exc()
         return False
 
+def get_trending_rank(sku, days=30):
+    """
+    Obtiene el ranking de trending de un SKU.
+
+    Args:
+        sku: SKU del producto
+        days: Días de historial a considerar (default 30)
+
+    Returns:
+        Ranking (1 = más vendido, None = sin ventas)
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        # Obtener ranking basado en ventas
+        cursor.execute('''
+            WITH ranked_sales AS (
+                SELECT
+                    sku,
+                    SUM(quantity) as total_sales,
+                    RANK() OVER (ORDER BY SUM(quantity) DESC) as ranking
+                FROM sales_history
+                WHERE sale_date >= datetime('now', '-' || ? || ' days')
+                GROUP BY sku
+            )
+            SELECT ranking FROM ranked_sales WHERE sku = ?
+        ''', (days, sku))
+
+        result = cursor.fetchone()
+        conn.close()
+
+        return result[0] if result else None
+
+    except Exception as e:
+        print(f"❌ Error obteniendo trending rank {sku}: {e}")
+        return None
+
+
+def calculate_alert_priority(velocity, stock, price, trending_rank=None):
+    """
+    Calcula prioridad de alerta basada en impacto real del negocio.
+    Sistema que aprende: usa velocidad actual + trending histórico.
+
+    Args:
+        velocity: Velocidad de ventas diaria (VDP)
+        stock: Stock actual
+        price: Precio del producto
+        trending_rank: Ranking en trending (1=top, None=sin datos)
+
+    Returns:
+        Score 0-100 (100 = máxima prioridad)
+
+    Criterios:
+        - Velocidad alta + stock bajo = prioridad CRÍTICA
+        - Trending top (rank 1-3) = boost +30 puntos
+        - Precio alto = boost proporcional
+        - Stock 0 = siempre prioridad 100
+    """
+    # Stock 0 = siempre crítico
+    if stock <= 0:
+        return 100
+
+    # Base: velocidad vs stock (días hasta stockout)
+    if velocity > 0:
+        days_to_stockout = stock / velocity
+
+        # Menos de 3 días = crítico
+        if days_to_stockout <= 3:
+            urgency_score = 80
+        # Menos de 7 días = alto
+        elif days_to_stockout <= 7:
+            urgency_score = 60
+        # Menos de 14 días = medio
+        elif days_to_stockout <= 14:
+            urgency_score = 40
+        else:
+            urgency_score = 20
+    else:
+        # Sin velocidad = baja prioridad base
+        urgency_score = 10
+
+    # Boost por trending (productos HOT = más prioridad)
+    trending_boost = 0
+    if trending_rank:
+        if trending_rank == 1:
+            trending_boost = 30  # Top 1 = +30 puntos
+        elif trending_rank == 2:
+            trending_boost = 20  # Top 2 = +20 puntos
+        elif trending_rank == 3:
+            trending_boost = 15  # Top 3 = +15 puntos
+        elif trending_rank <= 10:
+            trending_boost = 5   # Top 10 = +5 puntos
+
+    # Boost por valor monetario (productos caros = más impacto)
+    value_boost = 0
+    if price >= 100:
+        value_boost = 15
+    elif price >= 50:
+        value_boost = 10
+    elif price >= 25:
+        value_boost = 5
+
+    # Score final (max 100)
+    priority = min(100, urgency_score + trending_boost + value_boost)
+
+    return priority
+
+
 def save_sale(sku, product_name, quantity, order_id, shop):
     """
     Guarda venta en sales_history para trending.
