@@ -1000,6 +1000,40 @@
             </div>
         </div>
 
+        <!-- Recomendaciones de Compra -->
+        <div class="card fade-in">
+            <div class="card-header">
+                <h2>🛒 Recomendaciones de Compra</h2>
+                <div style="display: flex; gap: 8px;">
+                    <span class="badge badge-warning" id="reco-urgent">0 urgentes</span>
+                    <span class="badge badge-success" id="reco-total-cost">$0</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Urgencia</th>
+                                <th>Producto</th>
+                                <th>SKU</th>
+                                <th>Stock</th>
+                                <th>🛒 Comprar</th>
+                                <th>💰 Costo Est.</th>
+                                <th>Prioridad</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recommendations-tbody">
+                            <tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 16px; text-align: right; opacity: 0.6; font-size: 12px;">
+                    Lead time: 14 días | Margen seguridad: 7 días
+                </div>
+            </div>
+        </div>
+
         <!-- Grid de 2 columnas: Gráfico y Analytics -->
         <div class="grid-2">
             <div class="card slide-in">
@@ -1177,7 +1211,8 @@
                     loadSystemStatus(),
                     loadCriticalProducts(),
                     loadCashFlowAnalytics(),
-                    loadTrendingSizes()
+                    loadTrendingSizes(),
+                    loadRecommendations()
                 ]);
                 
                 const elapsed = Date.now() - startTime;
@@ -1585,6 +1620,68 @@
                         <span style="font-weight:600;color:${color};">${item.percentage}%</span>
                     </div></td>
                 </tr>`;
+            }).join('');
+        }
+
+        // ========================================
+        // RECOMENDACIONES DE COMPRA
+        // ========================================
+        async function loadRecommendations() {
+            try {
+                const response = await fetch(`${CONFIG.API_BASE}/api/recommendations?lead_time=14&safety_margin=7&min_priority=60&limit=10`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    renderRecommendationsTable(data.recommendations);
+
+                    // Actualizar badges
+                    const urgent = data.recommendations.filter(r => r.urgency_days <= 3).length;
+                    document.getElementById('reco-urgent').textContent = `${urgent} urgentes`;
+                    document.getElementById('reco-total-cost').textContent = `$${data.total_cost.toFixed(0)}`;
+                }
+            } catch (error) {
+                console.error('❌ Error loading recommendations:', error);
+                document.getElementById('recommendations-tbody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--danger);">Error cargando recomendaciones</td></tr>';
+            }
+        }
+
+        function renderRecommendationsTable(recommendations) {
+            const tbody = document.getElementById('recommendations-tbody');
+
+            if (!recommendations || recommendations.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;opacity:0.6;">✅ No hay compras urgentes necesarias</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = recommendations.map(item => {
+                // Badge de urgencia
+                let urgencyBadge;
+                if (item.urgency_days <= 3) {
+                    urgencyBadge = `<span class="badge badge-danger">🔥 ${item.urgency_days}d</span>`;
+                } else if (item.urgency_days <= 7) {
+                    urgencyBadge = `<span class="badge badge-warning">⚠️ ${item.urgency_days}d</span>`;
+                } else {
+                    urgencyBadge = `<span class="badge badge-success">✓ ${item.urgency_days}d</span>`;
+                }
+
+                // Badge de prioridad
+                const priorityBadge = getPriorityBadge(item.priority);
+
+                // Badge de categoría
+                const categoryClass = item.category === 'A' ? 'success' : item.category === 'B' ? 'warning' : 'danger';
+
+                return `
+                    <tr class="${item.urgency_days <= 3 ? 'critical' : ''}">
+                        <td>${urgencyBadge}</td>
+                        <td><strong>${escapeHtml(item.product_name)}</strong></td>
+                        <td><code style="background:var(--gray-200);padding:4px 8px;border-radius:4px;font-size:11px;">${escapeHtml(item.sku)}</code></td>
+                        <td>${item.current_stock} <span style="opacity:0.6;font-size:11px;">(${item.velocity_daily}/día)</span></td>
+                        <td style="font-weight:700;font-size:16px;color:var(--primary);">${item.recommended_qty} ud</td>
+                        <td style="font-weight:600;color:var(--brown);">$${item.estimated_cost.toFixed(2)}</td>
+                        <td>${priorityBadge}</td>
+                    </tr>
+                `;
             }).join('');
         }
 

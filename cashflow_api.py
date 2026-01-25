@@ -602,3 +602,137 @@ def get_trending_sizes():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@cashflow_bp.route('/api/recommendations', methods=['GET'])
+def get_purchase_recommendations():
+    """
+    Genera recomendaciones inteligentes de compra.
+
+    Query params:
+        - lead_time: días de lead time del proveedor (default 14)
+        - safety_margin: días extra de stock de seguridad (default 7)
+        - min_priority: prioridad mínima para recomendar (default 60)
+        - limit: máximo de recomendaciones (default 10)
+
+    Returns:
+        {
+            "success": true,
+            "recommendations": [
+                {
+                    "sku": "BV-007",
+                    "product_name": "Botas Vaqueras Talla 7",
+                    "current_stock": 5,
+                    "recommended_qty": 30,
+                    "urgency_days": 2,
+                    "priority": 85,
+                    "velocity_daily": 2.5,
+                    "estimated_cost": 750.00
+                }
+            ],
+            "total_items": 5,
+            "total_cost": 2450.00
+        }
+    """
+    try:
+        # Parámetros configurables
+        lead_time = request.args.get('lead_time', 14, type=int)
+        safety_margin = request.args.get('safety_margin', 7, type=int)
+        min_priority = request.args.get('min_priority', 60, type=int)
+        limit = request.args.get('limit', 10, type=int)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Obtener productos con velocity > 0
+        cursor.execute('''
+            SELECT
+                product_id,
+                name,
+                sku,
+                stock,
+                price,
+                cost_price,
+                velocity_daily,
+                category,
+                last_sale_date
+            FROM products
+            WHERE velocity_daily > 0
+            ORDER BY velocity_daily DESC
+        ''')
+
+        products = cursor.fetchall()
+        conn.close()
+
+        # Importar función de priorización
+        from database import calculate_alert_priority, get_trending_rank
+
+        recommendations = []
+        total_cost = 0
+
+        for p in products:
+            # Calcular prioridad
+            trending_rank = get_trending_rank(p['sku'])
+            priority = calculate_alert_priority(
+                velocity=p['velocity_daily'],
+                stock=p['stock'],
+                price=p['price'],
+                trending_rank=trending_rank
+            )
+
+            # Filtrar por prioridad mínima
+            if priority < min_priority:
+                continue
+
+            # Calcular cantidad recomendada
+            # Formula: (velocity × (lead_time + safety_margin)) - stock_actual
+            target_stock = p['velocity_daily'] * (lead_time + safety_margin)
+            recommended_qty = max(0, round(target_stock - p['stock']))
+
+            # Solo recomendar si necesita compra
+            if recommended_qty <= 0:
+                continue
+
+            # Días hasta stockout (urgencia)
+            urgency_days = round(p['stock'] / p['velocity_daily']) if p['velocity_daily'] > 0 else 999
+
+            # Costo estimado
+            cost_price = p['cost_price'] or (p['price'] * 0.6)  # Asumir 40% margen si no hay costo
+            estimated_cost = recommended_qty * cost_price
+
+            recommendations.append({
+                "sku": p['sku'],
+                "product_name": p['name'],
+                "current_stock": p['stock'],
+                "recommended_qty": recommended_qty,
+                "urgency_days": urgency_days,
+                "priority": priority,
+                "velocity_daily": round(p['velocity_daily'], 2),
+                "estimated_cost": round(estimated_cost, 2),
+                "category": p['category'] or 'C'
+            })
+
+            total_cost += estimated_cost
+
+        # Ordenar por urgencia (menos días primero)
+        recommendations.sort(key=lambda x: x['urgency_days'])
+
+        # Limitar resultados
+        recommendations = recommendations[:limit]
+
+        return jsonify({
+            "success": True,
+            "recommendations": recommendations,
+            "total_items": len(recommendations),
+            "total_cost": round(total_cost, 2),
+            "config": {
+                "lead_time_days": lead_time,
+                "safety_margin_days": safety_margin,
+                "min_priority": min_priority
+            }
+        }), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
