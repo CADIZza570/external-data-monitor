@@ -1545,6 +1545,48 @@
             }
         }
 
+        // ========================================
+        // TRENDING DE TALLAS
+        // ========================================
+        async function loadTrendingSizes() {
+            try {
+                const response = await fetch(`${CONFIG.API_BASE}/api/analytics/trending-sizes?days=30&limit=10`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                if (data.success) {
+                    renderTrendingTable(data.trending);
+                    document.getElementById('trending-total').textContent = `${data.total_sales} ventas`;
+                }
+            } catch (error) {
+                console.error('❌ Error loading trending:', error);
+                document.getElementById('trending-tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--danger);">Error cargando trending</td></tr>';
+            }
+        }
+
+        function renderTrendingTable(trending) {
+            const tbody = document.getElementById('trending-tbody');
+            if (!trending || trending.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;opacity:0.6;">📊 No hay datos de ventas aún</td></tr>';
+                return;
+            }
+            tbody.innerHTML = trending.map(item => {
+                const emoji = item.rank === 1 ? '🥇' : item.rank === 2 ? '🥈' : item.rank === 3 ? '🥉' : '🔹';
+                const color = item.percentage > 20 ? 'var(--success)' : item.percentage > 10 ? 'var(--warning)' : 'var(--gray-500)';
+                return `<tr>
+                    <td style="text-align:center;font-size:20px;">${emoji}</td>
+                    <td><code style="background:var(--gray-200);padding:4px 8px;border-radius:4px;">${item.sku}</code></td>
+                    <td>${item.product_name}</td>
+                    <td style="font-weight:600;color:var(--gold);">${item.sales_count}</td>
+                    <td><div style="display:flex;align-items:center;gap:8px;">
+                        <div style="flex:1;background:var(--gray-300);height:8px;border-radius:4px;overflow:hidden;">
+                            <div style="width:${item.percentage}%;background:${color};height:100%;"></div>
+                        </div>
+                        <span style="font-weight:600;color:${color};">${item.percentage}%</span>
+                    </div></td>
+                </tr>`;
+            }).join('');
+        }
+
         function updateCashFlowStats(overall) {
             // Update stats cards with Cash Flow data
             if (overall) {
@@ -2399,45 +2441,3 @@ Recomendación: ${product.daysToStockout <= 3 ? '⚠️ Reponer inmediatamente' 
     </script>
 </body>
 </html>
-
-        // ========================================
-        // TRENDING DE TALLAS
-        // ========================================
-        async function loadTrendingSizes() {
-            try {
-                const response = await fetch(`${CONFIG.API_BASE}/api/analytics/trending-sizes?days=30&limit=10`);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                if (data.success) {
-                    renderTrendingTable(data.trending);
-                    document.getElementById('trending-total').textContent = `${data.total_sales} ventas`;
-                }
-            } catch (error) {
-                console.error('❌ Error loading trending:', error);
-                document.getElementById('trending-tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--danger);">Error cargando trending</td></tr>';
-            }
-        }
-
-        function renderTrendingTable(trending) {
-            const tbody = document.getElementById('trending-tbody');
-            if (!trending || trending.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;opacity:0.6;">📊 No hay datos de ventas aún</td></tr>';
-                return;
-            }
-            tbody.innerHTML = trending.map(item => {
-                const emoji = item.rank === 1 ? '🥇' : item.rank === 2 ? '🥈' : item.rank === 3 ? '🥉' : '🔹';
-                const color = item.percentage > 20 ? 'var(--success)' : item.percentage > 10 ? 'var(--warning)' : 'var(--gray-500)';
-                return `<tr>
-                    <td style="text-align:center;font-size:20px;">${emoji}</td>
-                    <td><code style="background:var(--gray-200);padding:4px 8px;border-radius:4px;">${item.sku}</code></td>
-                    <td>${item.product_name}</td>
-                    <td style="font-weight:600;color:var(--gold);">${item.sales_count}</td>
-                    <td><div style="display:flex;align-items:center;gap:8px;">
-                        <div style="flex:1;background:var(--gray-300);height:8px;border-radius:4px;overflow:hidden;">
-                            <div style="width:${item.percentage}%;background:${color};height:100%;"></div>
-                        </div>
-                        <span style="font-weight:600;color:${color};">${item.percentage}%</span>
-                    </div></td>
-                </tr>`;
-            }).join('');
-        }
