@@ -1047,6 +1047,7 @@
                         <thead>
                             <tr>
                                 <th>Estado</th>
+                                <th>🎯 Prioridad</th>
                                 <th>Producto</th>
                                 <th>SKU</th>
                                 <th>Stock</th>
@@ -1061,7 +1062,7 @@
                         </thead>
                         <tbody id="critical-tbody">
                             <tr>
-                                <td colspan="11">
+                                <td colspan="12">
                                     <div class="loading"><div class="spinner"></div></div>
                                 </td>
                             </tr>
@@ -1743,7 +1744,7 @@
             if (filteredProducts.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="11">
+                        <td colspan="12">
                             <div class="empty-state">
                                 <p>No hay productos críticos con los filtros actuales</p>
                             </div>
@@ -1768,6 +1769,10 @@
                 const daysToStockout = p.days_to_stockout;
                 const daysSinceSale = p.days_since_sale;
 
+                // Calcular prioridad (mismo algoritmo del backend)
+                const priority = p.priority || calculatePriority(p);
+                const priorityBadge = getPriorityBadge(priority);
+
                 html += `
                     <tr class="${p.status === 'critical' ? 'critical' : ''}">
                         <td>
@@ -1778,6 +1783,7 @@
                                 </span>
                             </div>
                         </td>
+                        <td>${priorityBadge}</td>
                         <td><strong>${escapeHtml(p.name)}</strong></td>
                         <td><code style="background: #f1f5f9; color: #000000; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${escapeHtml(p.sku)}</code></td>
                         <td><strong>${stockText}</strong></td>
@@ -1804,7 +1810,49 @@
             
             tbody.innerHTML = html;
         }
-        
+
+        // ========================================
+        // SISTEMA DE PRIORIZACIÓN (ALERTAS INTELIGENTES)
+        // ========================================
+        function calculatePriority(product) {
+            const velocity = product.velocity_daily || 0;
+            const stock = product.stock || 0;
+            const price = product.price || 0;
+
+            // Stock 0 = siempre crítico
+            if (stock <= 0) return 100;
+
+            // Calcular urgencia base
+            let urgencyScore = 10;
+            if (velocity > 0) {
+                const daysToStockout = stock / velocity;
+                if (daysToStockout <= 3) urgencyScore = 80;
+                else if (daysToStockout <= 7) urgencyScore = 60;
+                else if (daysToStockout <= 14) urgencyScore = 40;
+                else urgencyScore = 20;
+            }
+
+            // Boost por valor monetario
+            let valueBoost = 0;
+            if (price >= 100) valueBoost = 15;
+            else if (price >= 50) valueBoost = 10;
+            else if (price >= 25) valueBoost = 5;
+
+            return Math.min(100, urgencyScore + valueBoost);
+        }
+
+        function getPriorityBadge(priority) {
+            if (priority >= 80) {
+                return `<span class="badge badge-danger" style="font-size: 14px; font-weight: 700;">🔥 ${priority}</span>`;
+            } else if (priority >= 60) {
+                return `<span class="badge badge-warning" style="font-size: 14px; font-weight: 700;">⚠️ ${priority}</span>`;
+            } else if (priority >= 40) {
+                return `<span class="badge badge-success" style="font-size: 14px;">✓ ${priority}</span>`;
+            } else {
+                return `<span class="badge" style="background: var(--gray-400); color: white; font-size: 14px;">⏸️ ${priority}</span>`;
+            }
+        }
+
         function updateCriticalStats(products) {
             const critical = products.filter(p => p.status === 'critical').length;
             const outOfStock = products.filter(p => p.stock === 0).length;

@@ -74,7 +74,7 @@ GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 
 # Importar funciones de base de datos
-from database import save_webhook, get_webhooks, get_webhook_count, save_product, save_sale
+from database import save_webhook, get_webhooks, get_webhook_count, save_product, save_sale, calculate_alert_priority, get_trending_rank
 # ✅ NUEVO: Sistema anti-duplicados
 from alert_deduplication import get_deduplicator, ALERT_TTL_CONFIG
 from business_adapter import BusinessAdapter  # ← NUEVA
@@ -1115,10 +1115,41 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
         if analytics_msg:
             logger.info(f"📊 {analytics_msg.split(chr(10))[0]}")  # Log primera línea
 
+        # ============= NUEVO: Filtro de prioridad (Sistema que aprende) =============
+        # Calcular prioridad basada en impacto real
+        trending_rank = get_trending_rank(product.get('sku', ''))
+        priority = calculate_alert_priority(
+            velocity=product.get('velocity_daily', 0),
+            stock=product.get('stock', 0),
+            price=product.get('price', 0),
+            trending_rank=trending_rank
+        )
+
+        # Umbrales de prioridad
+        PRIORITY_THRESHOLD = 40  # Solo alertar si prioridad >= 40
+
+        # Log para debugging
+        logger.info(
+            f"🎯 Prioridad: {priority}/100 "
+            f"(velocity={product.get('velocity_daily', 0):.1f}, "
+            f"stock={product.get('stock', 0)}, "
+            f"trending_rank={trending_rank or 'N/A'})"
+        )
+
+        # Filtrar alertas de bajo impacto
+        if priority < PRIORITY_THRESHOLD:
+            logger.info(
+                f"⏭️ Alerta omitida (prioridad {priority} < {PRIORITY_THRESHOLD}): "
+                f"{product.get('name')} - Bajo impacto en negocio"
+            )
+            alerts_skipped += 1
+            continue
+        # ============================================================================
+
         if dedup.should_send_alert(
             "low_stock",
             ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
-            sku=product.get('sku', f'prod_{product_id}'),  # Usar SKU en lugar de product_id
+            product_id=product_id,
             shop=shop_name
         ):
             # ✅ USAR MENSAJE DEL ADAPTER
@@ -1167,7 +1198,7 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
             dedup.mark_sent(
                 "low_stock",
                 ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
-                sku=product.get('sku', f'prod_{product_id}'),  # Usar SKU en lugar de product_id
+                product_id=product_id,
                 shop=shop_name
             )
             
