@@ -71,6 +71,8 @@ EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 
 # Importar funciones de base de datos
 from database import save_webhook, get_webhooks, get_webhook_count
+# ✅ NUEVO: Sistema anti-duplicados
+from alert_deduplication import get_deduplicator, ALERT_TTL_CONFIG
 
 # =========================
 # ⚙️ CONFIGURACIÓN GLOBAL
@@ -294,11 +296,14 @@ Powered by Railway + Shopify + SendGrid
 def send_discord_alert(alert_type: str, products_list: list, discord_url: str = None,
                       shop_name: str = None) -> bool:
     """
-    Envía alerta a Discord usando webhooks.
+    Envía alerta a Discord usando webhooks con formato profesional mejorado.
+    ✅ MEJORA v2.7: Formato premium con más contexto y urgencia visual
     
     Args:
         alert_type: Tipo de alerta (ej: "Stock Bajo Detectado")
         products_list: Lista de productos con alerta
+        discord_url: URL del webhook de Discord
+        shop_name: Nombre de la tienda
     
     Returns:
         True si envío exitoso, False si falla
@@ -309,37 +314,89 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
         return False
     
     try:
-        # Determinar color según urgencia
+        # Determinar color y nivel de urgencia según stock
         stock_min = min([p.get('stock', 999) for p in products_list])
-        if stock_min <= 3:
+        
+        if stock_min == 0:
+            color = 0x8B0000  # Rojo oscuro (AGOTADO)
+            emoji = "🔴"
+            urgency = "CRÍTICO - AGOTADO"
+            urgency_emoji = "🚨"
+        elif stock_min <= 3:
             color = 0xFF0000  # Rojo (crítico)
             emoji = "🔴"
+            urgency = "CRÍTICO"
+            urgency_emoji = "⚠️"
         elif stock_min <= 7:
             color = 0xFF6600  # Naranja (advertencia)
             emoji = "🟠"
+            urgency = "ADVERTENCIA"
+            urgency_emoji = "⚡"
         else:
             color = 0xFFCC00  # Amarillo (atención)
             emoji = "🟡"
+            urgency = "ATENCIÓN"
+            urgency_emoji = "💡"
         
-        # Crear lista de productos
+        # Crear descripción principal mejorada
+        description = f"━━━━━━━━━━━━━━━━━━━━━\n"
+        description += f"{urgency_emoji} **Nivel de Urgencia: {urgency}**\n"
+        description += f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        description += f"Se detectaron **{len(products_list)} producto(s)** con stock bajo\n"
+        
+        # Crear lista de productos con formato mejorado
         productos_texto = ""
         for i, product in enumerate(products_list[:5], 1):  # Max 5
-            productos_texto += f"\n{i}. **{product.get('name', 'Sin nombre')}**"
-            if 'stock' in product:
-                productos_texto += f"\n   📦 Stock: **{product['stock']} unidades**"
-            if 'sku' in product:
-                productos_texto += f"\n   🏷️ SKU: {product['sku']}"
-            if 'price' in product:
-                productos_texto += f"\n   💰 Precio: ${product['price']}"
-            productos_texto += "\n"
+            name = product.get('name', 'Sin nombre')
+            stock = product.get('stock', 0)
+            
+            # Emoji según stock individual
+            if stock == 0:
+                stock_emoji = "❌"
+                stock_text = "**AGOTADO**"
+            elif stock <= 3:
+                stock_emoji = "🔴"
+                stock_text = f"**{stock} unidades** (crítico)"
+            elif stock <= 7:
+                stock_emoji = "🟠"
+                stock_text = f"**{stock} unidades** (bajo)"
+            else:
+                stock_emoji = "🟡"
+                stock_text = f"**{stock} unidades**"
+            
+            productos_texto += f"\n{stock_emoji} **Producto #{i}: {name}**\n"
+            productos_texto += f"├─ 📦 Stock: {stock_text}\n"
+            
+            if 'sku' in product and product['sku']:
+                productos_texto += f"├─ 🏷️ SKU: `{product['sku']}`\n"
+            
+            if 'price' in product and product['price']:
+                productos_texto += f"├─ 💰 Precio: **${product['price']}**\n"
+            
+            # Calcular valor en riesgo
+            if 'price' in product and 'stock' in product:
+                try:
+                    price_float = float(product['price'])
+                    stock_int = int(product['stock'])
+                    value_at_risk = price_float * stock_int
+                    productos_texto += f"└─ 💸 Inventario restante: **${value_at_risk:.2f}**\n"
+                except (ValueError, TypeError):
+                    productos_texto += f"└─ ⚠️ Requiere reabastecimiento\n"
+            else:
+                productos_texto += f"└─ ⚠️ Requiere reabastecimiento\n"
         
         if len(products_list) > 5:
-            productos_texto += f"\n... y {len(products_list) - 5} productos más"
+            productos_texto += f"\n\n➕ **+{len(products_list) - 5} producto(s) adicional(es)**"
         
-        # Crear embed de Discord
+        # Timestamp formateado
+        from datetime import datetime
+        now = datetime.now()
+        timestamp_str = now.strftime("%d/%m/%Y a las %H:%M")
+        
+        # Crear embed de Discord mejorado
         embed = {
             "title": f"{emoji} {alert_type}",
-            "description": f"Se detectaron **{len(products_list)} productos** con alertas",
+            "description": description,
             "color": color,
             "fields": [
                 {
@@ -353,24 +410,25 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
                     "inline": True
                 },
                 {
-                    "name": "⏰ Timestamp",
-                    "value": f"<t:{int(time.time())}:R>",
+                    "name": "⏰ Detectado",
+                    "value": timestamp_str,
                     "inline": True
                 }
             ],
             "footer": {
-                "text": "Sistema de Alertas Automáticas • Powered by Railway"
-            }
+                "text": f"Sistema de Alertas Inteligente • Anti-Spam Activado • Powered by Railway",
+                "icon_url": "https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg"
+            },
+            "timestamp": now.isoformat()
         }
         
         # Payload de Discord
         payload = {
-            "username": "Shopify Alert Bot",
+            "username": "🤖 Shopify Alert Bot",
             "avatar_url": "https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg",
             "embeds": [embed]
         }
         
-        # Enviar a Discord
         # Enviar a Discord
         import requests
         response = requests.post(
@@ -388,7 +446,7 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
             
     except Exception as e:
         logger.error(f"❌ Error enviando Discord alert: {e}")
-        return False    
+        return False
 
 def send_to_google_sheets(alert_type: str, products_list: list, sheet_id: str = None,
                          shop_name: str = None) -> bool:
@@ -452,6 +510,7 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
                      sheet_id: str = None, shop_name: str = None) -> bool:
     """
     Procesa nueva orden y envía notificaciones.
+    ✅ MEJORA v2.8: Incluye notas del cliente y dirección formateada
     
     Args:
         order_data: Datos de la orden desde Shopify
@@ -463,12 +522,33 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
         # Extraer información clave
         order_number = order_data.get('order_number', 'N/A')
         order_id = order_data.get('id', 'N/A')
+        
+        # ✅ MEJORADO: Extraer dirección de envío PRIMERO (para obtener phone)
+        shipping = order_data.get('shipping_address') or {}
+        
+        # Información del cliente
         customer = order_data.get('customer') or {}
         customer_name = f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
         customer_email = customer.get('email', 'No email')
         
+        # ✅ NUEVO: Teléfono (intentar de customer primero, luego shipping)
+        customer_phone = customer.get('phone') or shipping.get('phone') or 'Sin teléfono'
+
         total_price = order_data.get('total_price', '0.00')
         currency = order_data.get('currency', 'USD')
+        
+        # ✅ NUEVO: Extraer notas del cliente
+        customer_note = order_data.get('note', '').strip()  # Nota general de la orden
+        note_attributes = order_data.get('note_attributes', [])  # Custom fields
+        
+        # Formatear notas adicionales (custom fields del checkout)
+        extra_notes = []
+        if note_attributes:
+            for attr in note_attributes:
+                name = attr.get('name', '')
+                value = attr.get('value', '')
+                if name and value:
+                    extra_notes.append(f"{name}: {value}")
         
         # Productos en la orden
         line_items = order_data.get('line_items', [])
@@ -483,38 +563,79 @@ def process_new_order(order_data: dict, email_to: str = None, discord_url: str =
             }
             products_summary.append(product_info)
         
-        # Dirección de envío
+        # ✅ MEJORADO: Dirección de envío formateada correctamente
         shipping = order_data.get('shipping_address') or {}
-        shipping_address = f"{shipping.get('address1', '')}, {shipping.get('city', '')}, {shipping.get('province', '')} {shipping.get('zip', '')}"
+        
+        # Construir dirección solo con campos que existen
+        address_parts = []
+        if shipping.get('address1'):
+            address_parts.append(shipping['address1'])
+        if shipping.get('address2'):
+            address_parts.append(shipping['address2'])
+        if shipping.get('city'):
+            address_parts.append(shipping['city'])
+        if shipping.get('province'):
+            address_parts.append(shipping['province'])
+        if shipping.get('zip'):
+            address_parts.append(shipping['zip'])
+        if shipping.get('country'):
+            address_parts.append(shipping['country'])
+        
+        shipping_address = ", ".join(address_parts) if address_parts else "Sin dirección de envío"
         
         logger.info(f"🛒 Nueva orden recibida: #{order_number} - {customer_name} - ${total_price}")
         
-        # Enviar a Discord
-        send_discord_order_alert(order_number, customer_name, customer_email, 
-                                products_summary, total_price, currency, shipping_address,
-                                discord_url=discord_url, shop_name=shop_name)
+        # Enviar a Discord (ahora con notas)
+        send_discord_order_alert(
+            order_number, customer_name, customer_email, customer_phone,
+            products_summary, total_price, currency, shipping_address,
+            customer_note, extra_notes,  # ← NUEVO: pasar notas
+            discord_url=discord_url, shop_name=shop_name
+        )
 
-        # Enviar Email
-        send_email_order_alert(order_number, customer_name, customer_email,
-                                products_summary, total_price, currency, shipping_address,
-                                email_to=email_to, shop_name=shop_name)
+        # Enviar Email (ahora con notas)
+        send_email_order_alert(
+            order_number, customer_name, customer_email, customer_phone,
+            products_summary, total_price, currency, shipping_address,
+            customer_note, extra_notes,  # ← NUEVO: pasar notas
+            email_to=email_to, shop_name=shop_name
+        )
 
-        # Guardar en Google Sheets
-        save_order_to_sheets(order_number, customer_name, customer_email,
-                            products_summary, total_price, currency, shipping_address,
-                            sheet_id=sheet_id, shop_name=shop_name)
+        # Guardar en Google Sheets (ahora con notas)
+        save_order_to_sheets(
+            order_number, customer_name, customer_email, customer_phone,
+            products_summary, total_price, currency, shipping_address,
+            customer_note,  # ← NUEVO: pasar nota
+            sheet_id=sheet_id, shop_name=shop_name
+        )
         
         return True
         
     except Exception as e:
         logger.error(f"❌ Error procesando orden: {e}")
         return False
-
-def send_discord_order_alert(order_number: str, customer_name: str, customer_email: str,
-                             products: list, total: str, currency: str, address: str,
-                             discord_url: str = None, shop_name: str = None) -> bool:
+    
+def send_discord_order_alert(order_number: str, customer_name: str, 
+                            customer_email:str , customer_phone: str,
+                            products: list, total: str, currency: str, address: str,
+                            customer_note: str = "", extra_notes: list = None,
+                            discord_url: str = None, shop_name: str = None) -> bool:
     """
-    Envía alerta de nueva orden a Discord.
+    Envía alerta de nueva orden a Discord con formato mejorado.
+    ✅ MEJORA v2.8: Incluye notas del cliente y formato premium
+    
+    Args:
+        order_number: Número de orden
+        customer_name: Nombre del cliente
+        customer_email: Email del cliente
+        products: Lista de productos
+        total: Total de la orden
+        currency: Moneda
+        address: Dirección de envío
+        customer_note: Nota del cliente (nuevo)
+        extra_notes: Notas adicionales/custom fields (nuevo)
+        discord_url: URL del webhook
+        shop_name: Nombre de la tienda
     """
     webhook_url = discord_url or DISCORD_WEBHOOK_URL
     if not webhook_url:
@@ -522,61 +643,118 @@ def send_discord_order_alert(order_number: str, customer_name: str, customer_ema
         return False
     
     try:
-        # Crear lista de productos
+        # Descripción principal mejorada
+        description = f"━━━━━━━━━━━━━━━━━━━━━\n"
+        description += f"💰 **Nueva Venta Confirmada**\n"
+        description += f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        description += f"**Orden #{order_number}** • ${total} {currency}"
+        
+        # Crear lista de productos con formato mejorado
         productos_texto = ""
         for i, product in enumerate(products[:10], 1):
-            productos_texto += f"\n{i}. **{product.get('name', 'Sin nombre')}**"
-            productos_texto += f"\n   📦 Cantidad: **{product.get('quantity', 0)}**"
-            productos_texto += f"\n   💵 Precio: ${product.get('price', '0.00')}"
-            if product.get('sku') and product.get('sku') != 'N/A':
-                productos_texto += f"\n   🏷️ SKU: {product.get('sku')}"
-            productos_texto += "\n"
+            name = product.get('name', 'Sin nombre')
+            qty = product.get('quantity', 0)
+            price = product.get('price', '0.00')
+            sku = product.get('sku', 'N/A')
+            
+            productos_texto += f"\n**{i}. {name}**\n"
+            productos_texto += f"├─ 📦 Cantidad: **{qty} unidad(es)**\n"
+            productos_texto += f"├─ 💵 Precio: **${price}**\n"
+            
+            if sku and sku != 'N/A':
+                productos_texto += f"└─ 🏷️ SKU: `{sku}`\n"
+            else:
+                productos_texto += f"└─ ⚠️ Sin SKU\n"
         
-        # Crear embed de Discord
+        if len(products) > 10:
+            productos_texto += f"\n➕ **+{len(products) - 10} producto(s) más**"
+        
+        # ✅ NUEVO: Sección de notas del cliente
+        notas_texto = ""
+        has_notes = False
+        
+        if customer_note:
+            notas_texto += f"📝 **Nota del cliente:**\n"
+            notas_texto += f"_{customer_note}_\n"
+            has_notes = True
+        
+        if extra_notes:
+            if has_notes:
+                notas_texto += "\n"
+            notas_texto += f"📋 **Información adicional:**\n"
+            for note in extra_notes:
+                notas_texto += f"• {note}\n"
+            has_notes = True
+        
+        if not has_notes:
+            notas_texto = "_Sin notas del cliente_"
+        
+        # Timestamp
+        from datetime import datetime
+        now = datetime.now()
+        timestamp_str = now.strftime("%d/%m/%Y a las %H:%M")
+        
+        # Crear fields del embed
+        fields = [
+            {
+                "name": "👤 Cliente",
+                "value": f"**{customer_name}**\n📧 {customer_email}\n📱 {customer_phone}",  # ✅ NUEVO
+                "inline": False
+            },
+            {
+                "name": "🛍️ Productos",
+                "value": productos_texto,
+                "inline": False
+            }
+        ]
+        
+        # ✅ NUEVO: Agregar campo de notas si existen
+        fields.append({
+            "name": "💬 Notas del Cliente",
+            "value": notas_texto,
+            "inline": False
+        })
+        
+        # Resto de fields
+        fields.extend([
+            {
+                "name": "💰 Total",
+                "value": f"**${total} {currency}**",
+                "inline": True
+            },
+            {
+                "name": "🏪 Tienda",
+                "value": shop_name or "Unknown Store",
+                "inline": True
+            },
+            {
+                "name": "🚚 Envío",
+                "value": address if address and address != "Sin dirección de envío" else "_Sin dirección registrada_",
+                "inline": False
+            },
+            {
+                "name": "⏰ Recibido",
+                "value": timestamp_str,
+                "inline": True
+            }
+        ])
+        
+        # Crear embed mejorado
         embed = {
             "title": f"🛒 Nueva Orden #{order_number}",
-            "description": f"**¡Tienes una nueva venta!**",
-            "color": 0x00FF00,  # Verde (éxito)
-            "fields": [
-                {
-                    "name": "👤 Cliente",
-                    "value": f"{customer_name}\n📧 {customer_email}",
-                    "inline": False
-                },
-                {
-                    "name": "🛍️ Productos",
-                    "value": productos_texto,
-                    "inline": False
-                },
-                {
-                    "name": "💰 Total",
-                    "value": f"**${total} {currency}**",
-                    "inline": True
-                },
-                {
-                    "name": "🏪 Tienda",  # ← AÑADE ESTE CAMPO COMPLETO
-                    "value": shop_name or "Unknown Store",
-                    "inline": True
-                },
-                {
-                    "name": "📍 Envío",
-                    "value": address if address.strip() else "Sin dirección",
-                    "inline": False
-                },
-                {
-                    "name": "⏰ Timestamp",
-                    "value": f"<t:{int(time.time())}:R>",
-                    "inline": True
-                }
-            ],
+            "description": description,
+            "color": 0x00D084,  # Verde Shopify
+            "fields": fields,
             "footer": {
-                "text": "Sistema de Alertas Automáticas • Shopify Orders"
-            }
+                "text": "Sistema de Alertas Inteligente • Shopify Orders • Anti-Spam Activado",
+                "icon_url": "https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg"
+            },
+            "timestamp": now.isoformat()
         }
         
         # Payload de Discord
         payload = {
-            "username": "Shopify Order Bot",
+            "username": "🤖 Shopify Order Bot",
             "avatar_url": "https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg",
             "embeds": [embed]
         }
@@ -593,18 +771,21 @@ def send_discord_order_alert(order_number: str, customer_name: str, customer_ema
             logger.info(f"✅ Discord order alert enviada: #{order_number}")
             return True
         else:
-            logger.error(f"❌ Discord error: {response.status_code}")
+            logger.error(f"❌ Discord error: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
         logger.error(f"❌ Error enviando Discord order alert: {e}")
         return False
 
-def send_email_order_alert(order_number: str, customer_name: str, customer_email: str,
-                          products: list, total: str, currency: str, address: str,
-                          email_to: str = None, shop_name: str = None) -> bool:
+def send_email_order_alert(order_number: str, customer_name: str, 
+                            customer_email:str, customer_phone:str, 
+                            products: list, total: str, currency: str, address: str,
+                            customer_note: str = "", extra_notes: list = None,
+                            email_to: str = None, shop_name: str = None) -> bool:
     """
     Envía email de alerta de nueva orden.
+    ✅ MEJORA v2.8: Incluye notas del cliente
     """
     email_recipient = email_to or EMAIL_SENDER
     if not SENDGRID_API_KEY or not email_recipient:
@@ -622,9 +803,23 @@ def send_email_order_alert(order_number: str, customer_name: str, customer_email
                 productos_texto += f"\n   SKU: {product.get('sku')}"
             productos_texto += "\n"
         
+        # ✅ NUEVO: Sección de notas
+        notas_section = ""
+        if customer_note or extra_notes:
+            notas_section += "\n════════════════════════════════════════\n\n"
+            notas_section += "NOTAS DEL CLIENTE:\n"
+            
+            if customer_note:
+                notas_section += f"\n📝 Nota principal:\n{customer_note}\n"
+            
+            if extra_notes:
+                notas_section += "\n📋 Información adicional:\n"
+                for note in extra_notes:
+                    notas_section += f"• {note}\n"
+        
         # Crear body del email
         body = f"""
-🛒 NUEVA ORDEN RECIBIDA - Shopify
+🛒 NUEVA ORDEN RECIBIDA - {shop_name or 'Shopify'}
 
 Orden #{order_number}
 
@@ -633,6 +828,7 @@ Orden #{order_number}
 CLIENTE:
 Nombre: {customer_name}
 Email: {customer_email}
+Teléfono: {customer_phone}
 
 ════════════════════════════════════════
 
@@ -642,18 +838,17 @@ PRODUCTOS:
 ════════════════════════════════════════
 
 TOTAL: ${total} {currency}
-
+{notas_section}
 ════════════════════════════════════════
 
 DIRECCIÓN DE ENVÍO:
-{address if address.strip() else 'Sin dirección registrada'}
+{address if address and address != 'Sin dirección de envío' else 'Sin dirección registrada'}
 
 ════════════════════════════════════════
 
-Ver orden completa en Shopify:
-https://connie-dev-studio.myshopify.com/admin/orders
+Ver orden completa en Shopify Admin
 
-Sistema de Alertas Automáticas
+Sistema de Alertas Inteligente
 Powered by Railway + Shopify
         """
         
@@ -675,17 +870,21 @@ Powered by Railway + Shopify
     except Exception as e:
         logger.error(f"❌ Error enviando email de orden: {e}")
         return False
-
-def save_order_to_sheets(order_number: str, customer_name: str, customer_email: str,
+    
+def save_order_to_sheets(order_number: str, customer_name:str, 
+                        customer_email:str, customer_phone:str,
                         products: list, total: str, currency: str, address: str,
+                        customer_note: str = "",
                         sheet_id: str = None, shop_name: str = None) -> bool:
     """
     Guarda orden en Google Sheets.
+    ✅ MEJORA v2.8: Incluye notas del cliente
     """
     target_sheet_id = sheet_id or GOOGLE_SHEET_ID
     if not GOOGLE_SHEETS_CREDENTIALS or not target_sheet_id:
         logger.warning("⚠️ Google Sheets no configurado")
         return False
+    
     try:
         # Parsear credenciales JSON
         creds_dict = json.loads(GOOGLE_SHEETS_CREDENTIALS)
@@ -713,15 +912,21 @@ def save_order_to_sheets(order_number: str, customer_name: str, customer_email: 
         if len(products) > 3:
             productos_resumen += f" +{len(products)-3} más"
         
-        # Añadir fila
+        # ✅ NUEVO: Incluir nota en resumen
+        nota_resumen = customer_note if customer_note else "Sin notas"
+        if len(nota_resumen) > 100:  # Truncar si es muy larga
+            nota_resumen = nota_resumen[:97] + "..."
+        
+        # Añadir fila con nota incluida
         row = [
             timestamp,
             f"Orden #{order_number}",
             customer_name,
             customer_email,
+            customer_phone, 
             productos_resumen,
             f"${total} {currency}",
-            "Nueva Orden",
+            nota_resumen,  
             shop_name or 'Unknown Store'
         ]
                 
@@ -766,18 +971,17 @@ def _save_alert(df: pd.DataFrame, alert_type: str, message: str) -> str:
     logger.error(f"❌ No se pudo guardar {alert_type} después de {max_retries} intentos")
     return ""
 
-
 def alert_low_stock(df: pd.DataFrame, threshold: int = None,
                    email_to: str = None, discord_url: str = None,
                    sheet_id: str = None, shop_name: str = None) -> dict:
     """
     Detecta productos con stock bajo.
-    ✅ Mejora v2.5: threshold evaluado en runtime, no al importar
+    ✅ MEJORA v2.6: Sistema anti-duplicados integrado
     
     Returns:
         dict con información de la alerta
     """
-    # ✅ Mejora: Evaluar default en runtime
+    # Evaluar threshold en runtime
     if threshold is None:
         threshold = LOW_STOCK_THRESHOLD
     
@@ -787,7 +991,7 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
     low_stock = df[df["stock"] <= threshold]
     
     if not low_stock.empty:
-        # ✅ Mejora v2.5: Usa helper DRY + retry logic
+        # Guardar CSV (como antes)
         path = _save_alert(
             low_stock, 
             "low_stock", 
@@ -796,40 +1000,76 @@ def alert_low_stock(df: pd.DataFrame, threshold: int = None,
         
         products = low_stock[["product_id", "name", "stock"]].to_dict('records')
         
-        # ✅ NUEVO: Enviar email de alerta
-        send_email_alert(
-            f"🚨 Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
-            products[:10],
-            email_to=email_to,
-            shop_name=shop_name
-        )
-
-        # ✅ NUEVO: Enviar Discord alert
-        send_discord_alert(
-            f"Stock Bajo Detectado: {len(low_stock)} productos <= {threshold} unidades",
-            products[:10],
-            discord_url=discord_url,
-            shop_name=shop_name
-        )
-
-        # ✅ NUEVO: Exportar a Google Sheets
-        send_to_google_sheets(
-            f"Stock Bajo <= {threshold}",
-            products[:10],
-            sheet_id=sheet_id,
-            shop_name=shop_name
-        )
-
+        # ✅ NUEVO: Sistema de deduplicación
+        dedup = get_deduplicator()
+        alerts_sent = 0
+        alerts_skipped = 0
+        
+        # Procesar cada producto individualmente
+        for product in products[:10]:  # Máximo 10 productos
+            product_id = product.get('product_id')
+            product_name = product.get('name', 'Sin nombre')
+            product_stock = product.get('stock', 0)
+            
+            # Verificar si ya se alertó en las últimas 24h
+            if dedup.should_send_alert(
+                "low_stock", 
+                ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
+                product_id=product_id,
+                shop=shop_name
+            ):
+                # ✅ SÍ ENVIAR - No es duplicado
+                logger.info(f"📧 Enviando alerta: {product_name} (Stock: {product_stock})")
+                
+                # Email
+                send_email_alert(
+                    f"🚨 Stock Bajo: {product_name} ({product_stock} unidades)",
+                    [product],
+                    email_to=email_to,
+                    shop_name=shop_name
+                )
+                
+                # Discord
+                send_discord_alert(
+                    f"Stock Bajo: {product_name} ({product_stock} unidades)",
+                    [product],
+                    discord_url=discord_url,
+                    shop_name=shop_name
+                )
+                
+                # Google Sheets
+                send_to_google_sheets(
+                    f"Stock Bajo <= {threshold}",
+                    [product],
+                    sheet_id=sheet_id,
+                    shop_name=shop_name
+                )
+                
+                # ✅ MARCAR como enviado (para que no se repita)
+                dedup.mark_sent(
+                    "low_stock",
+                    ttl_hours=ALERT_TTL_CONFIG.get("low_stock", 24),
+                    product_id=product_id,
+                    shop=shop_name
+                )
+                
+                alerts_sent += 1
+            else:
+                # ⏭️ NO ENVIAR - Es duplicado
+                logger.info(f"⏭️  Alerta ignorada (duplicado): {product_name}")
+                alerts_skipped += 1
+        
         return {
-            "triggered": True,
+            "triggered": alerts_sent > 0,
             "count": len(low_stock),
+            "alerts_sent": alerts_sent,
+            "alerts_deduplicated": alerts_skipped,
             "threshold": threshold,
             "file": path,
-            "products": products[:10]  # Máximo 10 para no saturar respuesta
+            "products": products[:10]
         }
     
     return {"triggered": False, "count": 0, "products": []}
-
 
 def alert_no_sales(df: pd.DataFrame, days: int = None,
                   email_to: str = None, discord_url: str = None,
@@ -1634,10 +1874,109 @@ def webhook_amazon():
         "coming_soon": True
     }), 200
 
+# ============================================================
+# 📊 ENDPOINTS DE DEDUPLICACIÓN (NUEVOS)
+# ============================================================
 
-# =========================
-# 🚀 ENTRY POINT
-# =========================
+@app.route('/api/deduplication/stats', methods=['GET'])
+def dedup_stats():
+    """
+    Estadísticas del sistema anti-duplicados.
+    
+    Ejemplo: GET /api/deduplication/stats
+    """
+    dedup = get_deduplicator()
+    stats = dedup.get_stats()
+    
+    return jsonify({
+        "status": "success",
+        "deduplication_system": {
+            "enabled": True,
+            "default_ttl_hours": 24,
+            "ttl_config": ALERT_TTL_CONFIG
+        },
+        "statistics": stats,
+        "timestamp": datetime.now().isoformat()
+    }), 200
+
+
+@app.route('/api/deduplication/reset', methods=['POST'])
+def dedup_reset():
+    """
+    Reset manual de una alerta específica.
+    
+    Body JSON:
+    {
+        "alert_type": "low_stock",
+        "product_id": 12345,
+        "shop": "chaparrita"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                "status": "error",
+                "message": "No JSON body provided"
+            }), 400
+        
+        alert_type = data.get("alert_type")
+        
+        if not alert_type:
+            return jsonify({
+                "status": "error",
+                "message": "alert_type is required"
+            }), 400
+        
+        # Extraer identificadores
+        identifiers = {k: v for k, v in data.items() if k != "alert_type"}
+        
+        # Reset
+        dedup = get_deduplicator()
+        was_reset = dedup.reset_alert(alert_type, **identifiers)
+        
+        if was_reset:
+            return jsonify({
+                "status": "success",
+                "message": f"Alert {alert_type} reset successfully",
+                "identifiers": identifiers
+            }), 200
+        else:
+            return jsonify({
+                "status": "warning",
+                "message": "Alert not found in cache",
+                "identifiers": identifiers
+            }), 200
+            
+    except Exception as e:
+        logger.error(f"❌ Error resetting alert: {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": "Internal server error"
+        }), 500
+
+
+@app.route('/api/deduplication/cleanup', methods=['POST'])
+def dedup_cleanup():
+    """
+    Fuerza limpieza completa del cache.
+    Solo para testing/debugging.
+    
+    Ejemplo: POST /api/deduplication/cleanup
+    """
+    dedup = get_deduplicator()
+    count = dedup.force_cleanup()
+    
+    return jsonify({
+        "status": "success",
+        "message": f"Cache cleared: {count} alerts removed"
+    }), 200
+
+
+# ============================================================
+# 🚀 ENTRY POINT 
+# ============================================================
 
 if __name__ == "__main__":
     # ✅ RAILWAY FIX: Usar puerto de variable de entorno
