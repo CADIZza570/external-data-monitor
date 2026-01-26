@@ -69,7 +69,50 @@ def init_database():
             UNIQUE(product_id, shop)
         )
     ''')
-    # =======================================================    
+    # =======================================================
+
+    # ============= ÍNDICES PARA PERFORMANCE =============
+    print("📊 Creando índices para optimización...")
+
+    # Índice 1: Búsquedas por tienda (muy común en queries)
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_webhooks_shop
+        ON webhooks(shop)
+    ''')
+
+    # Índice 2: Ordenamiento por fecha (dashboard)
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_webhooks_received_at
+        ON webhooks(received_at DESC)
+    ''')
+
+    # Índice 3: Filtros por fuente (analytics)
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_webhooks_source_shop
+        ON webhooks(source, shop)
+    ''')
+
+    # Índice 4: Búsqueda de productos por SKU (muy común)
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_products_shop_sku
+        ON products(shop, sku)
+    ''')
+
+    # Índice 5: Alertas de stock bajo (query frecuente)
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_products_stock_low
+        ON products(stock)
+        WHERE stock < 10
+    ''')
+
+    # Índice 6: Categorías ABC (analytics)
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_products_category
+        ON products(category, shop)
+    ''')
+
+    print("✅ 6 índices creados exitosamente")
+    # ===========================================================
 
     conn.commit()
     conn.close()
@@ -161,8 +204,12 @@ def get_webhooks(limit=50, offset=0, source=None):
         conn.row_factory = sqlite3.Row  # Permite acceder a columnas por nombre
         cursor = conn.cursor()
         
-        # Query base
-        query = "SELECT * FROM webhooks"
+        # Query base - Solo columnas necesarias (omitir payload que puede ser grande)
+        query = """
+            SELECT id, shop, topic, received_at, processed,
+                   error_message, retry_count
+            FROM webhooks
+        """
         params = []
         
         # Agregar filtro si se especifica source
@@ -249,7 +296,8 @@ def get_recent_webhooks(hours=24):
         
         # SQLite: datetime('now', '-24 hours') = hace 24 horas
         cursor.execute('''
-            SELECT * FROM webhooks 
+            SELECT id, shop, topic, received_at, processed
+            FROM webhooks
             WHERE received_at >= datetime('now', ? || ' hours')
             ORDER BY received_at DESC
         ''', (f'-{hours}',))
@@ -291,6 +339,7 @@ def calculate_velocity_and_category(sku, total_sales_30d=None):
     """
     # Si no hay datos de ventas, calcular desde orders_history
     if total_sales_30d is None:
+        conn = None
         try:
             conn = sqlite3.connect(DB_FILE)
             result = conn.execute('''
@@ -299,11 +348,13 @@ def calculate_velocity_and_category(sku, total_sales_30d=None):
                 WHERE sku = ?
                   AND order_date >= datetime('now', '-30 days')
             ''', (sku,)).fetchone()
-            conn.close()
 
             total_sales_30d = result[0] if result and result[0] else 0
-        except:
+        except Exception as e:
             total_sales_30d = 0
+        finally:
+            if conn:
+                conn.close()
 
     # Calcular velocity (ventas por día)
     velocity_daily = round(total_sales_30d / 30.0, 2) if total_sales_30d > 0 else 0
