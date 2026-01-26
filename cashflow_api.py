@@ -663,17 +663,32 @@ def get_purchase_recommendations():
         ''')
 
         products = cursor.fetchall()
+
+        # Pre-calcular TODOS los trending ranks en 1 sola query (evita N+1)
+        trending_ranks = {}
+        trending_products = cursor.execute("""
+            SELECT sku, SUM(quantity) as total_sales
+            FROM sales_history
+            WHERE sale_date >= date('now', '-30 days')
+            GROUP BY sku
+            ORDER BY total_sales DESC
+            LIMIT 100
+        """).fetchall()
+
+        for idx, row in enumerate(trending_products, 1):
+            trending_ranks[row['sku']] = idx
+
         conn.close()
 
         # Importar función de priorización
-        from database import calculate_alert_priority, get_trending_rank
+        from database import calculate_alert_priority
 
         recommendations = []
         total_cost = 0
 
         for p in products:
-            # Calcular prioridad
-            trending_rank = get_trending_rank(p['sku'])
+            # Usar trending rank pre-calculado (cache)
+            trending_rank = trending_ranks.get(p['sku'], None)
             priority = calculate_alert_priority(
                 velocity=p['velocity_daily'],
                 stock=p['stock'],
