@@ -734,8 +734,6 @@ def get_purchase_recommendations():
         }), 200
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
@@ -793,7 +791,6 @@ def get_or_generate_insight(insight_type, generator_func):
         }
 
     except Exception as e:
-        print(f"❌ Error en get_or_generate_insight({insight_type}): {e}")
         return {
             'success': False,
             'error': str(e),

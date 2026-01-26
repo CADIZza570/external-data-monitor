@@ -1248,13 +1248,21 @@
         let chartView = 'webhooks';
         let searchTimeout = null;
         let refreshInterval = null;
-        
+
+        // Sistema de logging condicional
+        const IS_PRODUCTION = window.location.hostname !== 'localhost';
+        const logger = {
+            log: (...args) => !IS_PRODUCTION && console.log(...args),
+            error: (...args) => logger.error(...args),
+            info: (...args) => !IS_PRODUCTION && console.log(...args)
+        };
+
         // ========================================
         // INICIALIZACIÓN
         // ========================================
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('🚀 Dashboard inicializándose...');
-            console.log('📡 API Base:', CONFIG.API_BASE);
+            logger.log('Dashboard inicializándose...');
+            logger.log('API Base:', CONFIG.API_BASE);
             
             // Cargar tiendas primero (dependencia)
             await loadActiveShops();
@@ -1268,7 +1276,7 @@
             // Indicador de conexión activa
             document.getElementById('realtime-dot').classList.add('active');
             
-            console.log('✅ Dashboard listo');
+            logger.log('Dashboard listo');
         });
         
         // Cleanup al salir
@@ -1303,7 +1311,7 @@
                 document.getElementById('realtime-dot').classList.add('active');
                 
             } catch (error) {
-                console.error('❌ Error refreshing data:', error);
+                logger.error('❌ Error refreshing data:', error);
                 document.getElementById('last-update').textContent = 
                     'Error de conexión';
                 document.getElementById('realtime-dot').classList.remove('active');
@@ -1325,7 +1333,7 @@
                         shops = data.shops || [];
                     }
                 } catch (e) {
-                    console.log('ℹ️ Endpoint /api/shops no disponible, usando datos por defecto');
+                    logger.info('Endpoint /api/shops no disponible, usando datos por defecto');
                 }
                 
                 // Si no hay endpoint, usar datos conocidos del sistema
@@ -1346,10 +1354,10 @@
                     select.innerHTML += `<option value="${shop.domain}">${shop.name}</option>`;
                 });
                 
-                console.log(`✅ ${shops.length} tiendas cargadas`);
+                logger.log(`${shops.length} tiendas cargadas`);
                 
             } catch (error) {
-                console.error('❌ Error loading shops:', error);
+                logger.error('❌ Error loading shops:', error);
                 // Fallback a datos por defecto
                 const select = document.getElementById('shop-filter');
                 select.innerHTML = `
@@ -1363,8 +1371,6 @@
         // ========================================
         // 🧠 WIDGET SMART: INVENTARIO EN TIEMPO REAL
         // ========================================
-
-        let inventoryRefreshTimeout = null;
 
         /**
          * Refresca el inventario desde Shopify
@@ -1389,7 +1395,7 @@
                 const shop = document.getElementById('shop-filter')?.value || 'chaparrita-boots.myshopify.com';
                 const url = `${CONFIG.API_BASE}/api/shopify/inventory-snapshot?shop=${shop}&force=${force}`;
 
-                console.log(`🧠 Fetching inventory: ${url}`);
+                logger.log(`Fetching inventory: ${url}`);
 
                 const response = await fetch(url);
 
@@ -1440,7 +1446,7 @@
                     statusText.textContent = `${sourceIcon} ${sourceText} (${items.length} items)`;
                     refreshIcon.textContent = '✅';
 
-                    console.log(`✅ Inventory loaded: ${items.length} items from ${result.source}`);
+                    logger.log(`Inventory loaded: ${items.length} items from ${result.source}`);
 
                     // Auto-reset ícono después de 2 segundos
                     setTimeout(() => {
@@ -1452,7 +1458,7 @@
                 }
 
             } catch (error) {
-                console.error('❌ Error loading inventory:', error);
+                logger.error('❌ Error loading inventory:', error);
                 statusEl.className = 'inventory-status error';
                 statusText.textContent = '❌ Error al cargar';
                 refreshIcon.textContent = '⚠️';
@@ -1485,7 +1491,7 @@
             // Detectar visibilidad de la pestaña
             document.addEventListener('visibilitychange', () => {
                 isVisible = !document.hidden;
-                console.log(`👀 Tab ${isVisible ? 'visible' : 'hidden'}`);
+                logger.log(`Tab ${isVisible ? 'visible' : 'hidden'}`);
             });
 
             // Detectar actividad del usuario (mouse, teclado, scroll)
@@ -1505,17 +1511,17 @@
                 // 1. Usuario está activo (interactuó en últimos 10 min)
                 // 2. Pestaña es visible
                 if (isUserActive && isVisible) {
-                    console.log('🧠 Smart auto-refresh: User active & tab visible');
+                    logger.log('Smart auto-refresh: User active & tab visible');
                     refreshInventory(false); // false = usa caché si no hay webhooks
                 } else {
-                    console.log('💤 Smart auto-refresh: Paused (inactive)');
+                    logger.log('Smart auto-refresh: Paused (inactive)');
                 }
             }, 5 * 60 * 1000); // Cada 5 minutos
         }
 
         // Iniciar smart refresh después de cargar dashboard
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('🧠 Inicializando smart inventory refresh...');
+            logger.log('Inicializando smart inventory refresh...');
             startSmartInventoryRefresh();
         });
 
@@ -1548,7 +1554,7 @@
                 throw new Error('Invalid response format');
                 
             } catch (error) {
-                console.error('❌ Error loading stats:', error);
+                logger.error('❌ Error loading stats:', error);
                 // No mostrar error al usuario, mantener valores anteriores
                 return null;
             }
@@ -1584,7 +1590,7 @@
                 throw new Error('Invalid response format');
                 
             } catch (error) {
-                console.error('❌ Error loading history:', error);
+                logger.error('❌ Error loading history:', error);
                 renderWebhookTable([]);
                 return null;
             }
@@ -1620,7 +1626,7 @@
                 throw new Error('No products found');
                 
             } catch (error) {
-                console.error('❌ Error loading critical products:', error);
+                logger.error('❌ Error loading critical products:', error);
                 
                 // Datos de fallback (para que el dashboard se vea bien)
                 const fallbackProducts = [
@@ -1658,7 +1664,7 @@
                 throw new Error('Invalid response format');
 
             } catch (error) {
-                console.error('❌ Error loading Cash Flow analytics:', error);
+                logger.error('❌ Error loading Cash Flow analytics:', error);
                 return null;
             }
         }
@@ -1676,7 +1682,7 @@
                     document.getElementById('trending-total').textContent = `${data.total_sales} ventas`;
                 }
             } catch (error) {
-                console.error('❌ Error loading trending:', error);
+                logger.error('❌ Error loading trending:', error);
                 document.getElementById('trending-tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--danger);">Error cargando trending</td></tr>';
             }
         }
@@ -1723,7 +1729,7 @@
                     document.getElementById('reco-total-cost').textContent = `$${data.total_cost.toFixed(0)}`;
                 }
             } catch (error) {
-                console.error('❌ Error loading recommendations:', error);
+                logger.error('❌ Error loading recommendations:', error);
                 document.getElementById('recommendations-tbody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--danger);">Error cargando recomendaciones</td></tr>';
             }
         }
@@ -1797,7 +1803,7 @@
                         `${result.cached ? '📦 Cached' : '✨ Nuevo'} - ${timestamp}`;
                 }
             } catch (error) {
-                console.error('❌ Error loading dead stock:', error);
+                logger.error('❌ Error loading dead stock:', error);
                 document.getElementById('dead-stock-tbody').innerHTML =
                     '<tr><td colspan="5" style="text-align:center;color:var(--danger);">Error cargando dead stock</td></tr>';
             }
@@ -1849,7 +1855,7 @@
                         `${result.cached ? '📦 Cached' : '✨ Nuevo'} - ${timestamp}`;
                 }
             } catch (error) {
-                console.error('❌ Error loading margin:', error);
+                logger.error('❌ Error loading margin:', error);
                 document.getElementById('best-margin-tbody').innerHTML =
                     '<tr><td colspan="5" style="text-align:center;color:var(--danger);">Error cargando análisis</td></tr>';
             }
@@ -1918,7 +1924,7 @@
                 return { health, status, dedup };
                 
             } catch (error) {
-                console.error('❌ Error loading status:', error);
+                logger.error('❌ Error loading status:', error);
                 return null;
             }
         }
@@ -2388,33 +2394,9 @@
         }
         
         // ========================================
-        // EXPORTAR DATOS (COMPLETO)
+        // EXPORTAR DATOS
         // ========================================
-        
-        function exportAllData() {
-            // Exportar todo: webhooks + productos críticos
-            const timestamp = new Date().toISOString().split('T')[0];
-            
-            // Webhooks CSV
-            let webhooksCsv = 'Fecha,Tienda,Evento,Tipo,Stock Bajo,Sin Ventas,Datos Faltantes,Simulación\n';
-            allWebhooks.forEach(wh => {
-                const date = new Date(wh.created_at).toISOString().split('T')[0];
-                const alerts = wh.alerts || {};
-                webhooksCsv += `"${date}","${wh.shop || ''}","${wh.topic || ''}",${wh.simulation ? 'Simulación' : 'Real'},${alerts.low_stock_count || 0},${alerts.no_sales_count || 0},${alerts.missing_data ? 'Sí' : 'No'},${wh.simulation}\n`;
-            });
-            
-            downloadCSV(webhooksCsv, `webhooks_${timestamp}.csv`);
-            
-            // Productos críticos CSV
-            if (criticalProducts.length > 0) {
-                let productsCsv = 'Producto,SKU,Stock,Velocity,Días Stockout,Estado,Tienda\n';
-                criticalProducts.forEach(p => {
-                    productsCsv += `"${p.name}","${p.sku}",${p.stock},${p.velocity},${p.daysToStockout},${p.status.toUpperCase()},${p.shop || ''}\n`;
-                });
-                downloadCSV(productsCsv, `productos_criticos_${timestamp}.csv`);
-            }
-        }
-        
+
         function exportCriticalProducts() {
             if (criticalProducts.length === 0) {
                 alert('No hay productos para exportar');
