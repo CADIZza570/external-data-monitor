@@ -952,3 +952,119 @@ def refresh_insights():
         }), 500
     finally:
         conn.close()
+
+
+# ============================================================================
+# REORDER CALCULATOR - OPTIMIZACIÓN DE COMPRAS CON PRESUPUESTO
+# ============================================================================
+
+@cashflow_bp.route('/api/reorder-calculator', methods=['GET'])
+def reorder_calculator():
+    """
+    Calcula lista optimizada de compras dentro de presupuesto.
+    Usa índices idx_products_stock_low y idx_products_category para performance.
+
+    Query params:
+        - budget: Presupuesto disponible (default: 5000)
+        - lead_time: Días de reposición (default: 14)
+        - shop: Filtro por tienda (opcional)
+
+    Returns:
+        {
+            'budget': float,
+            'used': float,
+            'remaining': float,
+            'shopping_list': [...],
+            'items_count': int,
+            'categories_breakdown': {...}
+        }
+    """
+    budget = request.args.get('budget', 5000, type=float)
+    lead_time = request.args.get('lead_time', 14, type=int)
+    shop_filter = request.args.get('shop', None)
+
+    conn = get_db_connection()
+    try:
+        # Query optimizado con índices idx_products_stock_low + idx_products_category
+        query = """
+            SELECT
+                sku, product_name, stock, velocity_daily, price, cost_price,
+                category, shop,
+                CAST(stock / NULLIF(velocity_daily, 0) AS INTEGER) as days_left,
+                CAST(velocity_daily * ? AS INTEGER) - stock as units_needed
+            FROM products
+            WHERE velocity_daily > 0
+              AND (stock / NULLIF(velocity_daily, 0)) < ?
+        """
+        params = [lead_time, lead_time * 1.5]
+
+        if shop_filter:
+            query += " AND shop = ?"
+            params.append(shop_filter)
+
+        # Ordenar por prioridad: A > B > C, luego por urgencia
+        query += """
+            ORDER BY
+                CASE category
+                    WHEN 'A' THEN 1
+                    WHEN 'B' THEN 2
+                    ELSE 3
+                END,
+                days_left ASC
+        """
+
+        products = conn.execute(query, params).fetchall()
+
+        shopping_list = []
+        total_cost = 0
+        category_breakdown = {'A': 0, 'B': 0, 'C': 0}
+
+        for p in products:
+            if p['units_needed'] <= 0:
+                continue
+
+            # Calcular costo (usar cost_price si existe, sino estimar 60% del precio)
+            unit_cost = p['cost_price'] if p['cost_price'] else (p['price'] * 0.6)
+            item_cost = p['units_needed'] * unit_cost
+
+            # Solo agregar si cabe en presupuesto
+            if total_cost + item_cost <= budget:
+                category = p['category'] or 'C'
+
+                shopping_list.append({
+                    'sku': p['sku'],
+                    'name': p['product_name'],
+                    'shop': p['shop'],
+                    'units_needed': p['units_needed'],
+                    'unit_cost': round(unit_cost, 2),
+                    'total_cost': round(item_cost, 2),
+                    'priority': category,
+                    'urgency': f"{p['days_left']} días",
+                    'current_stock': p['stock']
+                })
+
+                total_cost += item_cost
+                category_breakdown[category] += item_cost
+
+        return jsonify({
+            'budget': budget,
+            'used': round(total_cost, 2),
+            'remaining': round(budget - total_cost, 2),
+            'utilization_pct': round((total_cost / budget) * 100, 2) if budget > 0 else 0,
+            'shopping_list': shopping_list,
+            'items_count': len(shopping_list),
+            'categories_breakdown': {
+                'A': round(category_breakdown['A'], 2),
+                'B': round(category_breakdown['B'], 2),
+                'C': round(category_breakdown['C'], 2)
+            },
+            'lead_time_days': lead_time
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        conn.close()

@@ -1034,6 +1034,92 @@
             </div>
         </div>
 
+        <!-- Calculadora de Reorden con Presupuesto -->
+        <div class="card fade-in">
+            <div class="card-header">
+                <h2>🧮 Calculadora de Reorden - Optimización de Presupuesto</h2>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <label style="font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                        💰 Presupuesto:
+                        <input type="number" id="budget-input" value="5000" min="100" step="100"
+                               style="width: 120px; padding: 6px 10px; border: 1px solid var(--gray-300); border-radius: 6px; background: var(--gray-100); color: var(--gray-900);">
+                    </label>
+                    <label style="font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                        📅 Lead Time:
+                        <input type="number" id="leadtime-input" value="14" min="1" max="90"
+                               style="width: 80px; padding: 6px 10px; border: 1px solid var(--gray-300); border-radius: 6px; background: var(--gray-100); color: var(--gray-900);">
+                        días
+                    </label>
+                    <button class="btn btn-primary" onclick="calculateReorder()" style="padding: 6px 16px; font-size: 13px;">
+                        Calcular
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Resumen de Presupuesto -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                    <div style="padding: 16px; background: linear-gradient(135deg, var(--success) 0%, #059669 100%); border-radius: 10px; color: white; text-align: center;">
+                        <div style="font-size: 12px; opacity: 0.9; margin-bottom: 4px;">💰 Presupuesto Total</div>
+                        <div id="reorder-budget-total" style="font-size: 24px; font-weight: bold;">$0</div>
+                    </div>
+                    <div style="padding: 16px; background: linear-gradient(135deg, var(--info) 0%, #2563eb 100%); border-radius: 10px; color: white; text-align: center;">
+                        <div style="font-size: 12px; opacity: 0.9; margin-bottom: 4px;">📦 Usado</div>
+                        <div id="reorder-budget-used" style="font-size: 24px; font-weight: bold;">$0</div>
+                    </div>
+                    <div style="padding: 16px; background: linear-gradient(135deg, var(--warning) 0%, #ea580c 100%); border-radius: 10px; color: white; text-align: center;">
+                        <div style="font-size: 12px; opacity: 0.9; margin-bottom: 4px;">💵 Restante</div>
+                        <div id="reorder-budget-remaining" style="font-size: 24px; font-weight: bold;">$0</div>
+                    </div>
+                    <div style="padding: 16px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); border-radius: 10px; color: white; text-align: center;">
+                        <div style="font-size: 12px; opacity: 0.9; margin-bottom: 4px;">📊 Utilización</div>
+                        <div id="reorder-utilization" style="font-size: 24px; font-weight: bold;">0%</div>
+                    </div>
+                </div>
+
+                <!-- Lista de Compras Optimizada -->
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Prioridad</th>
+                                <th>SKU</th>
+                                <th>Producto</th>
+                                <th>Stock</th>
+                                <th>Urgencia</th>
+                                <th>Unidades</th>
+                                <th>Costo Unit.</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reorder-tbody">
+                            <tr><td colspan="8" style="text-align: center; padding: 32px; opacity: 0.5;">
+                                💡 Configura tu presupuesto y haz clic en "Calcular" para optimizar tu lista de compras
+                            </td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Desglose por Categoría -->
+                <div id="reorder-category-breakdown" style="margin-top: 24px; padding: 16px; background: var(--gray-100); border-radius: 10px; display: none;">
+                    <h3 style="font-size: 14px; margin-bottom: 12px; color: var(--gray-700);">📊 Inversión por Categoría ABC</h3>
+                    <div style="display: flex; gap: 16px; justify-content: space-around;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 12px; opacity: 0.7;">Categoría A</div>
+                            <div id="reorder-cat-a" style="font-size: 18px; font-weight: bold; color: var(--success);">$0</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 12px; opacity: 0.7;">Categoría B</div>
+                            <div id="reorder-cat-b" style="font-size: 18px; font-weight: bold; color: var(--info);">$0</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 12px; opacity: 0.7;">Categoría C</div>
+                            <div id="reorder-cat-c" style="font-size: 18px; font-weight: bold; color: var(--warning);">$0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Dead Stock -->
         <div class="card fade-in">
             <div class="card-header">
@@ -2746,6 +2832,88 @@ Recomendación: ${product.daysToStockout <= 3 ? '⚠️ Reponer inmediatamente' 
 
             // Guardar
             doc.save(`Reporte_Inventario_${new Date().toISOString().split('T')[0]}.pdf`);
+        }
+
+        // ========================================
+        // CALCULADORA DE REORDEN CON PRESUPUESTO
+        // ========================================
+
+        async function calculateReorder() {
+            const budget = parseFloat(document.getElementById('budget-input').value) || 5000;
+            const leadTime = parseInt(document.getElementById('leadtime-input').value) || 14;
+            const shopFilter = document.getElementById('shop-filter').value;
+
+            const tbody = document.getElementById('reorder-tbody');
+            tbody.innerHTML = '<tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>';
+
+            try {
+                let url = `${CONFIG.API_BASE}/api/reorder-calculator?budget=${budget}&lead_time=${leadTime}`;
+                if (shopFilter && shopFilter !== 'all') {
+                    url += `&shop=${encodeURIComponent(shopFilter)}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!data.shopping_list || data.shopping_list.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 32px; opacity: 0.5;">
+                        ✅ No hay productos que requieran reorden urgente con tu presupuesto actual
+                    </td></tr>`;
+
+                    // Resetear resumen
+                    document.getElementById('reorder-budget-total').textContent = `$${budget.toLocaleString('es-ES')}`;
+                    document.getElementById('reorder-budget-used').textContent = '$0';
+                    document.getElementById('reorder-budget-remaining').textContent = `$${budget.toLocaleString('es-ES')}`;
+                    document.getElementById('reorder-utilization').textContent = '0%';
+                    document.getElementById('reorder-category-breakdown').style.display = 'none';
+                    return;
+                }
+
+                // Actualizar resumen de presupuesto
+                document.getElementById('reorder-budget-total').textContent = `$${data.budget.toLocaleString('es-ES')}`;
+                document.getElementById('reorder-budget-used').textContent = `$${data.used.toLocaleString('es-ES')}`;
+                document.getElementById('reorder-budget-remaining').textContent = `$${data.remaining.toLocaleString('es-ES')}`;
+                document.getElementById('reorder-utilization').textContent = `${data.utilization_pct}%`;
+
+                // Mostrar desglose por categoría
+                document.getElementById('reorder-category-breakdown').style.display = 'block';
+                document.getElementById('reorder-cat-a').textContent = `$${data.categories_breakdown.A.toLocaleString('es-ES')}`;
+                document.getElementById('reorder-cat-b').textContent = `$${data.categories_breakdown.B.toLocaleString('es-ES')}`;
+                document.getElementById('reorder-cat-c').textContent = `$${data.categories_breakdown.C.toLocaleString('es-ES')}`;
+
+                // Renderizar tabla
+                tbody.innerHTML = data.shopping_list.map(item => {
+                    const priorityBadge = item.priority === 'A'
+                        ? '<span class="badge badge-danger">A - Alta</span>'
+                        : item.priority === 'B'
+                        ? '<span class="badge badge-warning">B - Media</span>'
+                        : '<span class="badge badge-info">C - Baja</span>';
+
+                    const urgencyColor = parseInt(item.urgency) <= 3 ? 'var(--danger)' :
+                                        parseInt(item.urgency) <= 7 ? 'var(--warning)' : 'var(--info)';
+
+                    return `
+                        <tr>
+                            <td>${priorityBadge}</td>
+                            <td><code style="font-size: 11px; background: var(--gray-200); padding: 2px 6px; border-radius: 4px;">${escapeHtml(item.sku)}</code></td>
+                            <td>${escapeHtml(item.name)}</td>
+                            <td style="text-align: center;">${item.current_stock}</td>
+                            <td style="color: ${urgencyColor}; font-weight: bold;">${item.urgency}</td>
+                            <td style="text-align: center; font-weight: bold; color: var(--primary);">${item.units_needed} unidades</td>
+                            <td style="text-align: right;">$${item.unit_cost.toLocaleString('es-ES')}</td>
+                            <td style="text-align: right; font-weight: bold; color: var(--success);">$${item.total_cost.toLocaleString('es-ES')}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                logger.log(`✅ Reorder calculado: ${data.items_count} items, $${data.used} usado de $${data.budget}`);
+
+            } catch (error) {
+                logger.error('❌ Error calculando reorder:', error);
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 32px; color: var(--danger);">
+                    ❌ Error al calcular lista de compras. Intenta nuevamente.
+                </td></tr>`;
+            }
         }
 
         // ========================================
