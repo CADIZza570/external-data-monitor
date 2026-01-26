@@ -988,7 +988,7 @@ def reorder_calculator():
         # Query optimizado con índices idx_products_stock_low + idx_products_category
         query = """
             SELECT
-                sku, product_name, stock, velocity_daily, price, cost_price,
+                sku, name, stock, velocity_daily, price, cost_price,
                 category, shop,
                 CAST(stock / NULLIF(velocity_daily, 0) AS INTEGER) as days_left,
                 CAST(velocity_daily * ? AS INTEGER) - stock as units_needed
@@ -1033,7 +1033,7 @@ def reorder_calculator():
 
                 shopping_list.append({
                     'sku': p['sku'],
-                    'name': p['product_name'],
+                    'name': p['name'],
                     'shop': p['shop'],
                     'units_needed': p['units_needed'],
                     'unit_cost': round(unit_cost, 2),
