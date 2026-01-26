@@ -3042,8 +3042,13 @@ def debug_db():
         from database import get_db_connection
         conn = get_db_connection()
         
-        # Ver productos
-        products = conn.execute('SELECT * FROM products ORDER BY last_updated DESC LIMIT 10').fetchall()
+        # Ver productos (solo columnas necesarias)
+        products = conn.execute('''
+            SELECT sku, product_name, stock, price, last_updated
+            FROM products
+            ORDER BY last_updated DESC
+            LIMIT 10
+        ''').fetchall()
         product_list = [dict(row) for row in products]
         
         # Ver webhooks recientes
@@ -3135,14 +3140,17 @@ def debug_data_dir():
     product_count = 0
     webhook_count = 0
     if db_exists:
+        conn = None
         try:
             from database import get_db_connection
             conn = get_db_connection()
             product_count = conn.execute('SELECT COUNT(*) FROM products').fetchone()[0]
             webhook_count = conn.execute('SELECT COUNT(*) FROM webhooks').fetchone()[0]
-            conn.close()
-        except:
+        except Exception as e:
             pass
+        finally:
+            if conn:
+                conn.close()
 
     return jsonify({
         "status": "success",

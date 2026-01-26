@@ -1,0 +1,324 @@
+═══════════════════════════════════════════════════════════════════════════════
+                          🤠 LA CHAPARRITA BOOTS 🤠
+                    INVENTARIO SHOPIFY - DISEÑO PRELIMINAR
+                         Estilo Vintage Western Wear
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 RESUMEN GENERAL:
+   • Total de Modelos: 19 productos únicos
+   • Total de Variantes (tallas): ~180 unidades individuales
+   • Rango de Precios: $130 - $500 USD
+   • Categorías: Botines y Botas Vaqueras
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #1: Botin Potrero Floter Negro
+─────────────────────────────────────────────────────────────────────────────
+Handle: botin-potrero-floter-negro-2017
+Título: Botin Potrero - Floter Negro Estilo 2017
+Descripción: Botín vaquero en cuero Floter Negro con tubo negro estilo 2017,
+             media vida con suela upper negro. Estilo clásico y resistente.
+Precio: $130.00
+Vendor: La Chaparrita
+Tipo: Botines
+Tags: Botin, Potrero, Negro, Floter, Estilo 2017
+Tallas Disponibles: 6, 6½, 7, 7½, 8, 8½, 9, 9½, 10, 10½, 11 (11 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #2: Botin Potrero Crazy Tang
+─────────────────────────────────────────────────────────────────────────────
+Handle: botin-potrero-crazy-tang-2017
+Título: Botin Potrero - Crazy Tang Estilo 2017
+Descripción: Botín vaquero en cuero Crazy Tang con tubo tang estilo 2017,
+             media vida con suela upper tang. Diseño distintivo y audaz.
+Precio: $130.00
+Vendor: La Chaparrita
+Tipo: Botines
+Tags: Botin, Potrero, Tang, Crazy Tang, Estilo 2017
+Tallas Disponibles: 6, 6½, 7, 7½, 8½, 9, 10, 10½, 11, 12 (10 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #3: Botin Potrero Piton Negro
+─────────────────────────────────────────────────────────────────────────────
+Handle: botin-potrero-piton-negro-520
+Título: Botin Potrero - Piton Negro Estilo #520 Rodeo
+Descripción: Botín vaquero en piel de pitón negro, estilo #520 Rodeo.
+             Diseño exótico y elegante para el vaquero moderno.
+Precio: $160.00
+Vendor: La Chaparrita
+Tipo: Botines
+Tags: Botin, Potrero, Piton, Negro, Rodeo, Exotico
+Tallas Disponibles: 6, 6½, 7, 9, 10, 10½, 11 (7 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #4: Bota Potrero Piton Grabada Negro
+─────────────────────────────────────────────────────────────────────────────
+Handle: bota-potrero-piton-grabada-negro-318
+Título: Bota Potrero - Piel Piton Grabada Negro Style #318 Rodeo
+Descripción: Bota vaquera alta en piel de pitón grabada negro, estilo #318 Rodeo.
+             Acabado premium con detalles grabados elegantes.
+Precio: $150.00
+Vendor: La Chaparrita
+Tipo: Botas
+Tags: Bota, Potrero, Piton Grabado, Negro, Rodeo
+Tallas Disponibles: 6, 6½, 7, 7½, 8, 9, 9½, 10½, 11 (9 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #5: Bota Potrero Piton Grabada Tabaco
+─────────────────────────────────────────────────────────────────────────────
+Handle: bota-potrero-piton-grabada-tabaco-319
+Título: Bota Potrero - Piel Piton Grabada Tabaco Style #319 Rodeo
+Descripción: Bota vaquera alta en piel de pitón grabada color tabaco, estilo #319 Rodeo.
+             Tono cálido con textura exótica grabada.
+Precio: $150.00
+Vendor: La Chaparrita
+Tipo: Botas
+Tags: Bota, Potrero, Piton Grabado, Tabaco, Rodeo
+Tallas Disponibles: 6, 6½, 7½, 8, 9, 9½, 10, 10½, 11 (9 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #6: Bota Rey Ranch Avestruz Negro
+─────────────────────────────────────────────────────────────────────────────
+Handle: bota-rey-ranch-avestruz-negro-1002
+Título: Bota Rey Ranch - Piel de Avestruz Negro Style #1002
+Descripción: Bota vaquera premium en auténtica piel de avestruz negro, estilo #1002
+             con suela de cuero y horma 100W. Lujo y distinción garantizados.
+Precio: $150.00
+Vendor: La Chaparrita
+Tipo: Botas
+Tags: Bota, Rey Ranch, Avestruz, Negro, Premium, Suela Cuero
+Tallas Disponibles: 7, 7½, 8, 8½, 9, 9½, 11, 12 (8 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #7: Bota Potrero Bovine Tang Negro
+─────────────────────────────────────────────────────────────────────────────
+Handle: bota-potrero-bovine-tang-negro
+Título: Bota Potrero - Piel Bovine Tang Negro Suela Hule
+Descripción: Bota vaquera en piel bovine color tang negro con suela de hule
+             resistente. Ideal para trabajo rudo y estilo casual.
+Precio: $150.00
+Vendor: La Chaparrita
+Tipo: Botas
+Tags: Bota, Potrero, Bovine, Tang Negro, Suela Hule
+Tallas Disponibles: 6½, 8, 8½, 9½, 10, 10½, 11 (7 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #8: Botin Chaparral Nobuck Cafe
+─────────────────────────────────────────────────────────────────────────────
+Handle: botin-chaparral-nobuck-cafe-justin
+Título: Botin Chaparral - Piel Nobuck Cafe Style Justin
+Descripción: Botín estilo Chaparral en piel nobuck café, inspirado en el estilo Justin
+             con suela de vaqueta. Comodidad y tradición en cada paso.
+Precio: $130.00
+Vendor: La Chaparrita
+Tipo: Botines
+Tags: Botin, Chaparral, Nobuck, Cafe, Justin, Vaqueta
+Tallas Disponibles: 6, 6½, 7, 7½, 8, 8½, 9, 9½, 10, 10½, 11 (11 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #9: Botin Potrero Nobuck Negro
+─────────────────────────────────────────────────────────────────────────────
+Handle: botin-potrero-nobuck-negro-395
+Título: Botin Potrero - Piel Nobuck Negro Style #395
+Descripción: Botín vaquero en piel nobuck negro, estilo #395.
+             Acabado suave y elegante con resistencia superior.
+Precio: $130.00
+Vendor: La Chaparrita
+Tipo: Botines
+Tags: Botin, Potrero, Nobuck, Negro
+Tallas Disponibles: 6, 8½, 9, 9½, 10, 10½, 11 (7 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #10: Botin Potrero Crazy Petatillo
+─────────────────────────────────────────────────────────────────────────────
+Handle: botin-potrero-crazy-petatillo-912
+Título: Botin Potrero - Piel Crazy Petatillo Style #912 Horma Bulldog
+Descripción: Botín vaquero en piel crazy horse con textura petatillo, estilo #912
+             con horma Bulldog. Diseño único y textura artesanal.
+Precio: $130.00
+Vendor: La Chaparrita
+Tipo: Botines
+Tags: Botin, Potrero, Crazy Horse, Petatillo, Bulldog
+Tallas Disponibles: 7, 8, 8½, 9, 9½, 10, 10½, 11 (8 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #11: Botin Los Altos Boots Piton Natural
+─────────────────────────────────────────────────────────────────────────────
+Handle: botin-los-altos-piton-natural-82bv5749
+Título: Botin Los Altos Boots - Piel Piton Natural Style #82BV5749
+Descripción: Botín premium Los Altos Boots en auténtica piel de pitón natural,
+             estilo #82BV5749 con puntera cuadrada ancha y suela de cuero.
+Precio: $370.00
+Vendor: La Chaparrita
+Tipo: Botines
+Tags: Botin, Los Altos Boots, Piton Natural, Premium, Wide Square Toe
+Tallas Disponibles: 7, 8, 8½, 9, 9½, 11 (6 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #12: Botin Los Altos Boots Pierna Avestruz
+─────────────────────────────────────────────────────────────────────────────
+Handle: botin-los-altos-pierna-avestruz-76b0516
+Título: Botin Los Altos Boots - Piel Pierna de Avestruz Faded Brown
+Descripción: Botín premium Los Altos Boots en exótica piel de pierna de avestruz
+             color faded brown, estilo #76B0516. Textura única y lujo incomparable.
+Precio: $340.00
+Vendor: La Chaparrita
+Tipo: Botines
+Tags: Botin, Los Altos Boots, Avestruz, Faded Brown, Premium
+Tallas Disponibles: 6½, 8, 9, 9½, 10½, 11 (6 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #13: Bota Cuadra Elefante Dusty Negro
+─────────────────────────────────────────────────────────────────────────────
+Handle: bota-cuadra-elefante-dusty-negro-cu722
+Título: Bota Cuadra - Piel Elefante Dusty Negro Style #CU722 Woven Narrow Sq
+Descripción: Bota vaquera de lujo Cuadra en piel de elefante dusty negro, estilo #CU722
+             con tejido woven y puntera cuadrada estrecha. Exclusividad y elegancia.
+Precio: $500.00
+Vendor: La Chaparrita
+Tipo: Botas
+Tags: Bota, Cuadra, Elefante, Negro, Luxury, Woven
+Tallas Disponibles: 6½, 7, 7½, 8, 8½, 9, 9½, 10, 11, 12 (10 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #14: Bota Cuadra Pata Avestruz Cafe
+─────────────────────────────────────────────────────────────────────────────
+Handle: bota-cuadra-pata-avestruz-cafe-cu631
+Título: Bota Cuadra - Piel Pata de Avestruz Cafe Style #CU631
+Descripción: Bota vaquera premium Cuadra en piel de pata de avestruz café, estilo #CU631
+             con detalles láser y tejido woven, puntera cuadrada estrecha.
+Precio: $480.00
+Vendor: La Chaparrita
+Tipo: Botas
+Tags: Bota, Cuadra, Pata Avestruz, Cafe, Laser, Woven
+Tallas Disponibles: 6½, 7, 7½, 9, 9½, 10, 11, 12 (8 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #15: Bota Cuadra Mantarraya Negro
+─────────────────────────────────────────────────────────────────────────────
+Handle: bota-cuadra-mantarraya-negro-cu783
+Título: Bota Cuadra - Piel de Mantarraya Negro Style #CU783
+Descripción: Bota vaquera exclusiva Cuadra en auténtica piel de mantarraya negro,
+             estilo #CU783 con detalles láser y tejido woven. Puntera cuadrada estrecha.
+Precio: $490.00
+Vendor: La Chaparrita
+Tipo: Botas
+Tags: Bota, Cuadra, Mantarraya, Stingray, Negro, Luxury
+Tallas Disponibles: 7½, 9½, 10, 10½, 12 (5 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #16: Botin Potrero Pull Up Cafe
+─────────────────────────────────────────────────────────────────────────────
+Handle: botin-potrero-pull-up-cafe-300
+Título: Botin Potrero - Piel Pull Up Cafe Style #300 Tubo Cafe
+Descripción: Botín vaquero en piel pull up café, estilo #300 con tubo café.
+             Acabado vintage que mejora con el uso.
+Precio: $130.00
+Vendor: La Chaparrita
+Tipo: Botines
+Tags: Botin, Potrero, Pull Up, Cafe, Vintage
+Tallas Disponibles: 5½, 6, 6½, 7, 7½, 8, 9, 9½ (8 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #17: Bota Circle G Piton Natural
+─────────────────────────────────────────────────────────────────────────────
+Handle: bota-circle-g-piton-natural-l8003
+Título: Bota Circle G - Piel de Piton Natural Style #L8003 Embroidery
+Descripción: Bota vaquera Circle G en piel de pitón natural, estilo #L8003
+             con bordados decorativos. Diseño artesanal y elegante.
+Precio: $260.00
+Vendor: La Chaparrita
+Tipo: Botas
+Tags: Bota, Circle G, Piton Natural, Embroidery, Bordado
+Tallas Disponibles: 6½, 7½, 8, 9, 10 (5 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #18: Bota Chaparral Vacuno Tang
+─────────────────────────────────────────────────────────────────────────────
+Handle: bota-chaparral-vacuno-tang-faby
+Título: Bota Chaparral - Piel de Vacuno Tang Style Faby Horma Bulldog
+Descripción: Bota vaquera Chaparral en piel de vacuno color tang, estilo Faby
+             con horma Bulldog. Comodidad y estilo tradicional.
+Precio: $150.00
+Vendor: La Chaparrita
+Tipo: Botas
+Tags: Bota, Chaparral, Vacuno, Tang, Faby, Bulldog
+Tallas Disponibles: 5, 5½, 6, 6½, 7, 7½, 8, 8½, 9, 9½ (10 variantes)
+Inventario: 1 unidad por talla
+
+
+─────────────────────────────────────────────────────────────────────────────
+PRODUCTO #19: Bota Tradicion Western Wear Crack Shedron
+─────────────────────────────────────────────────────────────────────────────
+Handle: bota-tradicion-crack-shedron-karina
+Título: Bota Tradicion Western Wear - Piel Crack Shedron Style Karina
+Descripción: Bota vaquera Tradición Western Wear en piel crack color shedron,
+             estilo Karina con suela de cuero. Elegancia y tradición.
+Precio: $150.00
+Vendor: La Chaparrita
+Tipo: Botas
+Tags: Bota, Tradicion Western Wear, Crack, Shedron, Karina
+Tallas Disponibles: 6, 7, 8½, 9, 9½ (5 variantes)
+Inventario: 1 unidad por talla
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                              📊 ESTADÍSTICAS FINALES
+═══════════════════════════════════════════════════════════════════════════════
+
+Total de Modelos:                    19 productos
+Total de Variantes (tallas):         155 unidades
+Inventario Total:                    155 botas/botines
+
+Distribución por Precio:
+  • $130 USD:  8 modelos (62 variantes)
+  • $150 USD:  7 modelos (53 variantes)
+  • $160 USD:  1 modelo  (7 variantes)
+  • $260 USD:  1 modelo  (5 variantes)
+  • $340 USD:  1 modelo  (6 variantes)
+  • $370 USD:  1 modelo  (6 variantes)
+  • $480 USD:  1 modelo  (8 variantes)
+  • $490 USD:  1 modelo  (5 variantes)
+  • $500 USD:  1 modelo  (10 variantes)
+
+Marcas/Tipos:
+  • Botines:  10 modelos
+  • Botas:    9 modelos
+
+═══════════════════════════════════════════════════════════════════════════════
+                    🤠 Listo para importar a Shopify 🤠
+═══════════════════════════════════════════════════════════════════════════════
