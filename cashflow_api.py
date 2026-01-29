@@ -20,10 +20,36 @@ import csv
 import io
 import os
 import json
+import logging
 from datetime import datetime, timedelta
+
+# ============================================================
+# LOGGING NARRATIVO + CENTINELA
+# ============================================================
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 # Crear Blueprint
 cashflow_bp = Blueprint('cashflow', __name__)
+
+# ============================================================
+# HELPER: VALIDACIÓN DE PARÁMETROS
+# ============================================================
+def get_validated_param(param_name, default, min_val=None, max_val=None):
+    """
+    Valida y sanitiza parámetros query con límites min/max.
+
+    Previene DoS accidental (e.g., ?days=999999) y valores inválidos.
+    """
+    value = request.args.get(param_name, default, type=type(default))
+    if min_val is not None:
+        value = max(value, min_val)
+    if max_val is not None:
+        value = min(value, max_val)
+    return value
 
 # Database
 DB_FILE = os.getenv("DATA_DIR", ".") + "/webhooks.db"
@@ -453,11 +479,15 @@ def abc_classification():
 @cashflow_bp.route('/api/cashflow/summary', methods=['GET'])
 def cashflow_summary():
     """
-    Resumen completo de Cash Flow.
+    Resumen completo de Cash Flow con detección de anomalías.
 
     Returns:
         JSON con métricas clave
     """
+    shop = request.args.get('shop', 'unknown')
+    logger.info(f"GET /api/cashflow/summary - shop: {shop}")
+
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -502,7 +532,27 @@ def cashflow_summary():
         ''')
         critical_stock = cursor.fetchone()['count']
 
-        conn.close()
+        # 🚨 CENTINELA: Detección de Anomalías
+        if inventory_value < 10000:
+            logger.warning(
+                f"⚠️ ANOMALÍA en {shop}: Inventory bajo (${inventory_value:.2f})! "
+                f"Posible stockout inminente. Con calor en Los Andes, demanda puede explotar - "
+                f"chequea logística YA."
+            )
+
+        if stockouts > 5:
+            logger.warning(
+                f"🔴 ALERTA CRÍTICA: {stockouts} productos agotados en {shop}! "
+                f"Categoría A en riesgo. Reorder urgente para no perder ventas en temporada alta."
+            )
+
+        if critical_stock > 10:
+            logger.warning(
+                f"🟡 ATENCIÓN: {critical_stock} productos con menos de 7 días de stock. "
+                f"Revisar reorden para evitar quiebres de inventario."
+            )
+
+        logger.info(f"Summary calculado: {total_products} productos, {stockouts} stockouts, ${lost_revenue:.2f} perdidos")
 
         return jsonify({
             "success": True,
@@ -516,7 +566,12 @@ def cashflow_summary():
         }), 200
 
     except Exception as e:
+        logger.error(f"Error en cashflow_summary: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+    finally:
+        if conn:
+            conn.close()
 
 # ============================================================
 # ENDPOINT: TRENDING DE TALLAS
@@ -979,12 +1034,16 @@ def reorder_calculator():
             'categories_breakdown': {...}
         }
     """
-    budget = request.args.get('budget', 5000, type=float)
-    lead_time = request.args.get('lead_time', 14, type=int)
+    # ✅ VALIDACIÓN con límites
+    budget = get_validated_param('budget', 5000, min_val=0, max_val=1000000)
+    lead_time = get_validated_param('lead_time', 14, min_val=1, max_val=90)
     shop_filter = request.args.get('shop', None)
 
-    conn = get_db_connection()
+    logger.info(f"GET /api/reorder-calculator - shop: {shop_filter or 'all'}, budget: ${budget}, lead_time: {lead_time}d")
+
+    conn = None
     try:
+        conn = get_db_connection()
         # Query optimizado con índices idx_products_stock_low + idx_products_category
         query = """
             SELECT
@@ -1046,6 +1105,39 @@ def reorder_calculator():
                 total_cost += item_cost
                 category_breakdown[category] += item_cost
 
+        # 🚨 CENTINELA: Detección de Demanda Explosiva
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT sku, product_name, velocity_daily,
+                   AVG(quantity) as avg_recent_sales
+            FROM sales_history
+            WHERE sale_date >= date('now', '-3 days')
+            GROUP BY sku
+            HAVING AVG(quantity) > 0
+        """)
+        recent_sales = cursor.fetchall()
+
+        for sale in recent_sales:
+            # Buscar velocity normal del producto
+            cursor.execute("""
+                SELECT velocity_daily FROM products WHERE sku = ?
+            """, (sale['sku'],))
+            product = cursor.fetchone()
+
+            if product and product['velocity_daily']:
+                velocity_spike = (sale['avg_recent_sales'] / product['velocity_daily']) - 1
+                if velocity_spike > 0.5:  # 50% más que lo normal
+                    logger.warning(
+                        f"🔥 DEMANDA EXPLOTANDO: {sale['product_name']} ({sale['sku']}) "
+                        f"vendió {velocity_spike*100:.0f}% más en últimos 3 días! "
+                        f"Posible efecto calor/estacional en Los Andes? Chequeá proveedores AHORA."
+                    )
+
+        logger.info(
+            f"Reorder calculado: {len(shopping_list)} items, ${total_cost:.2f}/{budget:.2f} usado "
+            f"({(total_cost/budget)*100:.1f}% utilización)"
+        )
+
         return jsonify({
             'budget': budget,
             'used': round(total_cost, 2),
@@ -1062,9 +1154,11 @@ def reorder_calculator():
         })
 
     except Exception as e:
+        logger.error(f"Error en reorder_calculator: {e}", exc_info=True)
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
