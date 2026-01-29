@@ -6,10 +6,26 @@ API para gestión de inventario, análisis financiero y optimización de compras
 
 ## 🔐 Authentication
 
-⚠️ **Estado Actual:** Sistema sin autenticación
-🔜 **Próximamente:** API Keys con header `X-API-Key`
+✅ **IMPLEMENTADO:** API Keys con header `X-API-Key`
 
-**Recomendación:** Usar solo en red interna o detrás de firewall/VPN hasta implementar auth.
+**Uso:**
+```bash
+curl -H "X-API-Key: sk_live_abc123..." \
+  "https://tranquil-freedom-production.up.railway.app/api/cashflow/summary?shop=la-chaparrita"
+```
+
+**Obtener API Key:**
+1. Contactar al admin del sistema
+2. Recibirás una key del tipo: `sk_live_...` (admin) o `sk_readonly_...` (solo lectura)
+3. Incluir en TODOS los requests en header `X-API-Key`
+
+**Modo Desarrollo:**
+- Si no hay API keys configuradas → auth bypass (solo local)
+- En producción (Railway) → **auth obligatorio**
+
+**Errores comunes:**
+- `401 Unauthorized - Missing X-API-Key header` → Falta el header
+- `401 Unauthorized - Invalid API key` → Key incorrecta o revocada
 
 ---
 
@@ -37,8 +53,11 @@ curl https://tranquil-freedom-production.up.railway.app/health
 ### 2. Resumen de Cash Flow
 Obtiene métricas financieras clave del inventario.
 
+🔐 **Requiere autenticación**
+
 ```bash
-curl "https://tranquil-freedom-production.up.railway.app/api/cashflow/summary?shop=la-chaparrita"
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://tranquil-freedom-production.up.railway.app/api/cashflow/summary?shop=la-chaparrita"
 ```
 
 **Parámetros:**
@@ -68,8 +87,11 @@ curl "https://tranquil-freedom-production.up.railway.app/api/cashflow/summary?sh
 ### 3. Calculadora de Reorden (Optimización de Presupuesto)
 Calcula lista optimizada de compras según presupuesto y lead time.
 
+🔐 **Requiere autenticación**
+
 ```bash
-curl "https://tranquil-freedom-production.up.railway.app/api/reorder-calculator?budget=5000&lead_time=14&shop=la-chaparrita"
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://tranquil-freedom-production.up.railway.app/api/reorder-calculator?budget=5000&lead_time=14&shop=la-chaparrita"
 ```
 
 **Parámetros:**
@@ -223,12 +245,13 @@ SOMB-002,52.00,Proveedor B,Sombrero texano
 
 ## 🔧 Próximas Features (Roadmap)
 
-- [ ] Autenticación con API Keys
+- [x] ✅ Autenticación con API Keys (Track 2)
+- [x] ✅ Retry logic en integraciones (Track 2)
 - [ ] Swagger/OpenAPI documentation
 - [ ] WebSocket para alertas real-time
 - [ ] Dashboard UI con Chart.js
-- [ ] Retry logic en integraciones
 - [ ] Tests automatizados
+- [ ] Forecasting con ML (anticipación de stockouts)
 
 ---
 
@@ -240,12 +263,32 @@ SOMB-002,52.00,Proveedor B,Sombrero texano
 
 ---
 
-## 🎯 Ejemplo Completo con Auth (próximamente)
+## 🎯 Ejemplo Completo con Auth
 
 ```bash
-# Una vez implementado API keys:
-curl -H "X-API-Key: sk_live_abc123..." \
+# 1. Exportar tu API key
+export API_KEY="sk_live_abc123..."
+
+# 2. Request con auth
+curl -H "X-API-Key: $API_KEY" \
   "https://tranquil-freedom-production.up.railway.app/api/cashflow/summary?shop=la-chaparrita"
+
+# 3. Import costs (WRITE operation)
+curl -X POST \
+  -H "X-API-Key: $API_KEY" \
+  -F "file=@costos.csv" \
+  "https://tranquil-freedom-production.up.railway.app/api/costs/import"
+
+# 4. Reorder calculator con presupuesto
+curl -H "X-API-Key: $API_KEY" \
+  "https://tranquil-freedom-production.up.railway.app/api/reorder-calculator?budget=10000&lead_time=21&shop=la-chaparrita"
+```
+
+**Configurar en Railway:**
+```bash
+# Variables de entorno necesarias
+SHOPIFY_API_KEY=sk_live_tu_key_secreta_aqui
+READONLY_API_KEY=sk_readonly_opcional  # Opcional
 ```
 
 ---

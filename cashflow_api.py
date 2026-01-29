@@ -22,6 +22,7 @@ import os
 import json
 import logging
 from datetime import datetime, timedelta
+from auth_middleware import require_api_key  # 🔐 Auth
 
 # ============================================================
 # LOGGING NARRATIVO + CENTINELA
@@ -65,6 +66,7 @@ def get_db_connection():
 # ============================================================
 
 @cashflow_bp.route('/api/costs/import', methods=['POST'])
+@require_api_key  # 🔐 Requiere autenticación (WRITE operation)
 def import_costs():
     """
     Importa costos desde CSV.
@@ -364,6 +366,7 @@ def days_of_inventory():
 
 
 @cashflow_bp.route('/api/cashflow/abc-classification', methods=['GET'])
+@require_api_key  # 🔐 Requiere autenticación
 def abc_classification():
     """
     Clasificación ABC de productos (Pareto 80/20).
@@ -477,6 +480,7 @@ def abc_classification():
 
 
 @cashflow_bp.route('/api/cashflow/summary', methods=['GET'])
+@require_api_key  # 🔐 Requiere autenticación
 def cashflow_summary():
     """
     Resumen completo de Cash Flow con detección de anomalías.
@@ -1014,6 +1018,7 @@ def refresh_insights():
 # ============================================================================
 
 @cashflow_bp.route('/api/reorder-calculator', methods=['GET'])
+@require_api_key  # 🔐 Requiere autenticación
 def reorder_calculator():
     """
     Calcula lista optimizada de compras dentro de presupuesto.
