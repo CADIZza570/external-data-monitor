@@ -55,6 +55,38 @@ def init_database():
         )
     ''')
 
+    # ============= MIGRACIÓN: Agregar columnas faltantes =============
+    # Fix: Loop de errores "no such column: processed"
+    # Migración idempotente (safe ejecutar múltiples veces)
+    print("🔧 Verificando columnas en webhooks...")
+    try:
+        cursor.execute("ALTER TABLE webhooks ADD COLUMN processed INTEGER DEFAULT 0")
+        print("✅ Columna 'processed' agregada a webhooks")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'processed' ya existe")
+        else:
+            raise
+
+    try:
+        cursor.execute("ALTER TABLE webhooks ADD COLUMN error_message TEXT")
+        print("✅ Columna 'error_message' agregada a webhooks")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'error_message' ya existe")
+        else:
+            raise
+
+    try:
+        cursor.execute("ALTER TABLE webhooks ADD COLUMN retry_count INTEGER DEFAULT 0")
+        print("✅ Columna 'retry_count' agregada a webhooks")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'retry_count' ya existe")
+        else:
+            raise
+    # ================================================================
+
     # ============= NUEVO: Crear tabla products =============
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS products (
