@@ -101,6 +101,60 @@ def init_database():
             UNIQUE(product_id, shop)
         )
     ''')
+
+    # ============= MIGRACIÓN: Agregar columnas analytics a products =============
+    print("🔧 Verificando columnas analytics en products...")
+
+    # Columna: cost_price (precio de costo para cashflow)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN cost_price REAL")
+        print("✅ Columna 'cost_price' agregada a products")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'cost_price' ya existe")
+        else:
+            raise
+
+    # Columna: last_sale_date (última venta registrada)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN last_sale_date TIMESTAMP")
+        print("✅ Columna 'last_sale_date' agregada a products")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'last_sale_date' ya existe")
+        else:
+            raise
+
+    # Columna: total_sales_30d (ventas últimos 30 días)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN total_sales_30d INTEGER DEFAULT 0")
+        print("✅ Columna 'total_sales_30d' agregada a products")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'total_sales_30d' ya existe")
+        else:
+            raise
+
+    # Columna: velocity_daily (velocidad de venta diaria)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN velocity_daily REAL DEFAULT 0")
+        print("✅ Columna 'velocity_daily' agregada a products")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'velocity_daily' ya existe")
+        else:
+            raise
+
+    # Columna: category (clasificación ABC)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN category TEXT DEFAULT 'C'")
+        print("✅ Columna 'category' agregada a products")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'category' ya existe")
+        else:
+            raise
+    # =======================================================================
     # =======================================================
 
     # ============= ÍNDICES PARA PERFORMANCE =============

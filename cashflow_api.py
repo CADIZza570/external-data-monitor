@@ -1113,7 +1113,7 @@ def reorder_calculator():
         # 🚨 CENTINELA: Detección de Demanda Explosiva
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT sku, product_name, velocity_daily,
+            SELECT sku, product_name,
                    AVG(quantity) as avg_recent_sales
             FROM sales_history
             WHERE sale_date >= date('now', '-3 days')
