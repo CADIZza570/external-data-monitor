@@ -1167,3 +1167,77 @@ def reorder_calculator():
     finally:
         if conn:
             conn.close()
+
+
+# ============================================================================
+# DEBUG / MIGRACIÓN FORZADA
+# ============================================================================
+
+@cashflow_bp.route('/api/debug/force-migrate', methods=['POST'])
+@require_api_key  # 🔐 Solo admin
+def force_migrate():
+    """
+    Endpoint de emergencia para forzar migración de columnas en products.
+    Solo usar si init_database() no se ejecutó correctamente al arrancar.
+    
+    POST /api/debug/force-migrate
+    """
+    try:
+        from database import get_db_connection
+        import sqlite3
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        results = []
+        
+        # Lista de columnas a agregar
+        migrations = [
+            ("velocity_daily", "REAL DEFAULT 0"),
+            ("category", "TEXT DEFAULT 'C'"),
+            ("cost_price", "REAL"),
+            ("last_sale_date", "TIMESTAMP"),
+            ("total_sales_30d", "INTEGER DEFAULT 0")
+        ]
+        
+        for col_name, col_type in migrations:
+            try:
+                cursor.execute(f"ALTER TABLE products ADD COLUMN {col_name} {col_type}")
+                conn.commit()
+                results.append({
+                    'column': col_name,
+                    'status': 'added',
+                    'message': f'Columna {col_name} agregada exitosamente'
+                })
+            except sqlite3.OperationalError as e:
+                if "duplicate column name" in str(e).lower():
+                    results.append({
+                        'column': col_name,
+                        'status': 'exists',
+                        'message': f'Columna {col_name} ya existe'
+                    })
+                else:
+                    results.append({
+                        'column': col_name,
+                        'status': 'error',
+                        'message': str(e)
+                    })
+        
+        # Verificar columnas finales
+        cursor.execute("PRAGMA table_info(products)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'migrations': results,
+            'final_columns': columns,
+            'message': 'Migración forzada completada. Reinicia la app si persisten errores.'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
