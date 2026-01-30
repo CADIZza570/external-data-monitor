@@ -106,18 +106,6 @@ print("🔧 Inicializando base de datos y ejecutando migraciones...")
 init_database()
 print("✅ Base de datos lista")
 
-# ✅ SUPER CRÍTICO: Ejecutar migración forzada adicional
-# Esto es un workaround para Railway que no ejecuta init_database correctamente
-print("🔧 Ejecutando migración forzada adicional...")
-try:
-    from run_migration import run_migration
-    run_migration()
-except Exception as e:
-    print(f"⚠️ Error en migración forzada: {e}")
-    import traceback
-    traceback.print_exc()
-print("✅ Migración forzada completada")
-
 # =========================
 # 📝 LOGGING MEJORADO (Archivo + Consola)
 # =========================
