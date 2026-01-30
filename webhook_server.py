@@ -110,14 +110,12 @@ print("✅ Base de datos lista")
 # Esto es un workaround para Railway que no ejecuta init_database correctamente
 print("🔧 Ejecutando migración forzada adicional...")
 try:
-    import subprocess
-    result = subprocess.run(['python3', 'run_migration.py'],
-                          capture_output=True, text=True, timeout=30)
-    print(result.stdout)
-    if result.returncode != 0:
-        print(f"⚠️ Migración forzada falló: {result.stderr}")
+    from run_migration import run_migration
+    run_migration()
 except Exception as e:
-    print(f"⚠️ No se pudo ejecutar run_migration.py: {e}")
+    print(f"⚠️ Error en migración forzada: {e}")
+    import traceback
+    traceback.print_exc()
 print("✅ Migración forzada completada")
 
 # =========================
