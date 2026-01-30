@@ -53,7 +53,10 @@ from config_shared import (
     LOG_FILE,
     EMAIL_SENDER,
     validate_config
-)       
+)
+
+# ✅ NUEVO: Retry logic para integraciones
+from retry_utils import get_retry_session       
 # Configurar SendGrid API Key
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 
@@ -74,7 +77,7 @@ GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 
 # Importar funciones de base de datos
-from database import save_webhook, get_webhooks, get_webhook_count, save_product, save_sale, calculate_alert_priority, get_trending_rank
+from database import save_webhook, get_webhooks, get_webhook_count, save_product, save_sale, calculate_alert_priority, get_trending_rank, init_database
 # ✅ NUEVO: Sistema anti-duplicados
 from alert_deduplication import get_deduplicator, ALERT_TTL_CONFIG
 from business_adapter import BusinessAdapter  # ← NUEVA
@@ -97,6 +100,11 @@ MAX_PRODUCTS_PER_WEBHOOK = 10000  # Límite de productos por request
 # Ejecutamos validación al iniciar el servidor
 # Esto asegura que cualquier error de config se detecte antes de levantar Flask
 validate_config(strict=False)  # ✅ Modo no-estricto para Railway
+
+# ✅ CRÍTICO: Inicializar DB y ejecutar migraciones al arrancar
+print("🔧 Inicializando base de datos y ejecutando migraciones...")
+init_database()
+print("✅ Base de datos lista")
 
 # =========================
 # 📝 LOGGING MEJORADO (Archivo + Consola)
@@ -296,12 +304,24 @@ Powered by Railway + Shopify + SendGrid
             plain_text_content=body
         )
         
-        # Enviar con SendGrid
+        # ✅ Enviar con SendGrid CON RETRY (SendGrid SDK internamente usa requests)
+        # El SDK de SendGrid ya tiene retry built-in, pero configuramos timeout
         sg = SendGridAPIClient(SENDGRID_API_KEY)
-        response = sg.send(message)
-        
-        logger.info(f"✅ Email enviado via SendGrid: {subject} (status: {response.status_code})")
-        return True
+
+        # Retry manual con try-except para robustez adicional
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = sg.send(message)
+                logger.info(f"✅ Email enviado via SendGrid: {subject} (status: {response.status_code})")
+                return True
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait_time = 0.5 * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"⚠️ SendGrid retry {attempt + 1}/{max_retries} - esperando {wait_time}s: {e}")
+                    time.sleep(wait_time)
+                else:
+                    raise  # Re-raise en último intento
         
     except Exception as e:
         logger.error(f"❌ Error enviando email con SendGrid: {e}")
@@ -460,14 +480,15 @@ def send_discord_alert(alert_type: str, products_list: list, discord_url: str = 
             "embeds": [embed]
         }
         
-        # Enviar a Discord
-        import requests
-        response = requests.post(
+        # ✅ Enviar a Discord CON RETRY (3 intentos, exponential backoff)
+        session = get_retry_session(retries=3, backoff_factor=0.5)
+        response = session.post(
             webhook_url,
             json=payload,
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
+            timeout=10
         )
-        
+
         if response.status_code == 204:
             logger.info(f"✅ Discord alert enviada: {alert_type}")
             return True
@@ -512,12 +533,14 @@ def send_to_google_sheets(alert_type: str, products_list: list, sheet_id: str = 
         
         # Abrir sheet
         sheet = client.open_by_key(target_sheet_id).sheet1
-        
+
         # Preparar datos
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Añadir cada producto como una fila
+
+        # ✅ Añadir cada producto como una fila CON RETRY
+        # gspread internamente usa requests, aplicamos retry manual por fila
+        max_retries = 3
         for product in products_list:
             row = [
                 timestamp,
@@ -528,8 +551,20 @@ def send_to_google_sheets(alert_type: str, products_list: list, sheet_id: str = 
                 alert_type,
                 shop_name or 'Unknown Store'
             ]
-            sheet.append_row(row)
-        
+
+            # Retry por si falla la escritura
+            for attempt in range(max_retries):
+                try:
+                    sheet.append_row(row)
+                    break  # Éxito, salir del retry loop
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        wait_time = 0.5 * (2 ** attempt)
+                        logger.warning(f"⚠️ Google Sheets retry {attempt + 1}/{max_retries} - esperando {wait_time}s: {e}")
+                        time.sleep(wait_time)
+                    else:
+                        raise  # Re-raise en último intento
+
         logger.info(f"✅ Google Sheets actualizado: {len(products_list)} productos")
         return True
         

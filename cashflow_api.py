@@ -20,10 +20,37 @@ import csv
 import io
 import os
 import json
+import logging
 from datetime import datetime, timedelta
+from auth_middleware import require_api_key  # 🔐 Auth
+
+# ============================================================
+# LOGGING NARRATIVO + CENTINELA
+# ============================================================
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 # Crear Blueprint
 cashflow_bp = Blueprint('cashflow', __name__)
+
+# ============================================================
+# HELPER: VALIDACIÓN DE PARÁMETROS
+# ============================================================
+def get_validated_param(param_name, default, min_val=None, max_val=None):
+    """
+    Valida y sanitiza parámetros query con límites min/max.
+
+    Previene DoS accidental (e.g., ?days=999999) y valores inválidos.
+    """
+    value = request.args.get(param_name, default, type=type(default))
+    if min_val is not None:
+        value = max(value, min_val)
+    if max_val is not None:
+        value = min(value, max_val)
+    return value
 
 # Database
 DB_FILE = os.getenv("DATA_DIR", ".") + "/webhooks.db"
@@ -39,6 +66,7 @@ def get_db_connection():
 # ============================================================
 
 @cashflow_bp.route('/api/costs/import', methods=['POST'])
+@require_api_key  # 🔐 Requiere autenticación (WRITE operation)
 def import_costs():
     """
     Importa costos desde CSV.
@@ -338,6 +366,7 @@ def days_of_inventory():
 
 
 @cashflow_bp.route('/api/cashflow/abc-classification', methods=['GET'])
+@require_api_key  # 🔐 Requiere autenticación
 def abc_classification():
     """
     Clasificación ABC de productos (Pareto 80/20).
@@ -451,13 +480,18 @@ def abc_classification():
 
 
 @cashflow_bp.route('/api/cashflow/summary', methods=['GET'])
+@require_api_key  # 🔐 Requiere autenticación
 def cashflow_summary():
     """
-    Resumen completo de Cash Flow.
+    Resumen completo de Cash Flow con detección de anomalías.
 
     Returns:
         JSON con métricas clave
     """
+    shop = request.args.get('shop', 'unknown')
+    logger.info(f"GET /api/cashflow/summary - shop: {shop}")
+
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -502,7 +536,27 @@ def cashflow_summary():
         ''')
         critical_stock = cursor.fetchone()['count']
 
-        conn.close()
+        # 🚨 CENTINELA: Detección de Anomalías
+        if inventory_value < 10000:
+            logger.warning(
+                f"⚠️ ANOMALÍA en {shop}: Inventory bajo (${inventory_value:.2f})! "
+                f"Posible stockout inminente. Con calor en Los Andes, demanda puede explotar - "
+                f"chequea logística YA."
+            )
+
+        if stockouts > 5:
+            logger.warning(
+                f"🔴 ALERTA CRÍTICA: {stockouts} productos agotados en {shop}! "
+                f"Categoría A en riesgo. Reorder urgente para no perder ventas en temporada alta."
+            )
+
+        if critical_stock > 10:
+            logger.warning(
+                f"🟡 ATENCIÓN: {critical_stock} productos con menos de 7 días de stock. "
+                f"Revisar reorden para evitar quiebres de inventario."
+            )
+
+        logger.info(f"Summary calculado: {total_products} productos, {stockouts} stockouts, ${lost_revenue:.2f} perdidos")
 
         return jsonify({
             "success": True,
@@ -516,7 +570,12 @@ def cashflow_summary():
         }), 200
 
     except Exception as e:
+        logger.error(f"Error en cashflow_summary: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+    finally:
+        if conn:
+            conn.close()
 
 # ============================================================
 # ENDPOINT: TRENDING DE TALLAS
@@ -952,3 +1011,233 @@ def refresh_insights():
         }), 500
     finally:
         conn.close()
+
+
+# ============================================================================
+# REORDER CALCULATOR - OPTIMIZACIÓN DE COMPRAS CON PRESUPUESTO
+# ============================================================================
+
+@cashflow_bp.route('/api/reorder-calculator', methods=['GET'])
+@require_api_key  # 🔐 Requiere autenticación
+def reorder_calculator():
+    """
+    Calcula lista optimizada de compras dentro de presupuesto.
+    Usa índices idx_products_stock_low y idx_products_category para performance.
+
+    Query params:
+        - budget: Presupuesto disponible (default: 5000)
+        - lead_time: Días de reposición (default: 14)
+        - shop: Filtro por tienda (opcional)
+
+    Returns:
+        {
+            'budget': float,
+            'used': float,
+            'remaining': float,
+            'shopping_list': [...],
+            'items_count': int,
+            'categories_breakdown': {...}
+        }
+    """
+    # ✅ VALIDACIÓN con límites
+    budget = get_validated_param('budget', 5000, min_val=0, max_val=1000000)
+    lead_time = get_validated_param('lead_time', 14, min_val=1, max_val=90)
+    shop_filter = request.args.get('shop', None)
+
+    logger.info(f"GET /api/reorder-calculator - shop: {shop_filter or 'all'}, budget: ${budget}, lead_time: {lead_time}d")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        # Query optimizado con índices idx_products_stock_low + idx_products_category
+        query = """
+            SELECT
+                sku, name, stock, velocity_daily, price, cost_price,
+                category, shop,
+                CAST(stock / NULLIF(velocity_daily, 0) AS INTEGER) as days_left,
+                CAST(velocity_daily * ? AS INTEGER) - stock as units_needed
+            FROM products
+            WHERE velocity_daily > 0
+              AND (stock / NULLIF(velocity_daily, 0)) < ?
+        """
+        params = [lead_time, lead_time * 1.5]
+
+        if shop_filter:
+            query += " AND shop = ?"
+            params.append(shop_filter)
+
+        # Ordenar por prioridad: A > B > C, luego por urgencia
+        query += """
+            ORDER BY
+                CASE category
+                    WHEN 'A' THEN 1
+                    WHEN 'B' THEN 2
+                    ELSE 3
+                END,
+                days_left ASC
+        """
+
+        products = conn.execute(query, params).fetchall()
+
+        shopping_list = []
+        total_cost = 0
+        category_breakdown = {'A': 0, 'B': 0, 'C': 0}
+
+        for p in products:
+            if p['units_needed'] <= 0:
+                continue
+
+            # Calcular costo (usar cost_price si existe, sino estimar 60% del precio)
+            unit_cost = p['cost_price'] if p['cost_price'] else (p['price'] * 0.6)
+            item_cost = p['units_needed'] * unit_cost
+
+            # Solo agregar si cabe en presupuesto
+            if total_cost + item_cost <= budget:
+                category = p['category'] or 'C'
+
+                shopping_list.append({
+                    'sku': p['sku'],
+                    'name': p['name'],
+                    'shop': p['shop'],
+                    'units_needed': p['units_needed'],
+                    'unit_cost': round(unit_cost, 2),
+                    'total_cost': round(item_cost, 2),
+                    'priority': category,
+                    'urgency': f"{p['days_left']} días",
+                    'current_stock': p['stock']
+                })
+
+                total_cost += item_cost
+                category_breakdown[category] += item_cost
+
+        # 🚨 CENTINELA: Detección de Demanda Explosiva
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT sku, product_name,
+                   AVG(quantity) as avg_recent_sales
+            FROM sales_history
+            WHERE sale_date >= date('now', '-3 days')
+            GROUP BY sku
+            HAVING AVG(quantity) > 0
+        """)
+        recent_sales = cursor.fetchall()
+
+        for sale in recent_sales:
+            # Buscar velocity normal del producto
+            cursor.execute("""
+                SELECT velocity_daily FROM products WHERE sku = ?
+            """, (sale['sku'],))
+            product = cursor.fetchone()
+
+            if product and product['velocity_daily']:
+                velocity_spike = (sale['avg_recent_sales'] / product['velocity_daily']) - 1
+                if velocity_spike > 0.5:  # 50% más que lo normal
+                    logger.warning(
+                        f"🔥 DEMANDA EXPLOTANDO: {sale['product_name']} ({sale['sku']}) "
+                        f"vendió {velocity_spike*100:.0f}% más en últimos 3 días! "
+                        f"Posible efecto calor/estacional en Los Andes? Chequeá proveedores AHORA."
+                    )
+
+        logger.info(
+            f"Reorder calculado: {len(shopping_list)} items, ${total_cost:.2f}/{budget:.2f} usado "
+            f"({(total_cost/budget)*100:.1f}% utilización)"
+        )
+
+        return jsonify({
+            'budget': budget,
+            'used': round(total_cost, 2),
+            'remaining': round(budget - total_cost, 2),
+            'utilization_pct': round((total_cost / budget) * 100, 2) if budget > 0 else 0,
+            'shopping_list': shopping_list,
+            'items_count': len(shopping_list),
+            'categories_breakdown': {
+                'A': round(category_breakdown['A'], 2),
+                'B': round(category_breakdown['B'], 2),
+                'C': round(category_breakdown['C'], 2)
+            },
+            'lead_time_days': lead_time
+        })
+
+    except Exception as e:
+        logger.error(f"Error en reorder_calculator: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# ============================================================================
+# DEBUG / MIGRACIÓN FORZADA
+# ============================================================================
+
+@cashflow_bp.route('/api/debug/force-migrate', methods=['POST'])
+@require_api_key  # 🔐 Solo admin
+def force_migrate():
+    """
+    Endpoint de emergencia para forzar migración de columnas en products.
+    Solo usar si init_database() no se ejecutó correctamente al arrancar.
+    
+    POST /api/debug/force-migrate
+    """
+    try:
+        from database import get_db_connection
+        import sqlite3
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        results = []
+        
+        # Lista de columnas a agregar
+        migrations = [
+            ("velocity_daily", "REAL DEFAULT 0"),
+            ("category", "TEXT DEFAULT 'C'"),
+            ("cost_price", "REAL"),
+            ("last_sale_date", "TIMESTAMP"),
+            ("total_sales_30d", "INTEGER DEFAULT 0")
+        ]
+        
+        for col_name, col_type in migrations:
+            try:
+                cursor.execute(f"ALTER TABLE products ADD COLUMN {col_name} {col_type}")
+                conn.commit()
+                results.append({
+                    'column': col_name,
+                    'status': 'added',
+                    'message': f'Columna {col_name} agregada exitosamente'
+                })
+            except sqlite3.OperationalError as e:
+                if "duplicate column name" in str(e).lower():
+                    results.append({
+                        'column': col_name,
+                        'status': 'exists',
+                        'message': f'Columna {col_name} ya existe'
+                    })
+                else:
+                    results.append({
+                        'column': col_name,
+                        'status': 'error',
+                        'message': str(e)
+                    })
+        
+        # Verificar columnas finales
+        cursor.execute("PRAGMA table_info(products)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'migrations': results,
+            'final_columns': columns,
+            'message': 'Migración forzada completada. Reinicia la app si persisten errores.'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

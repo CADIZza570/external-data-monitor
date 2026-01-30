@@ -55,6 +55,38 @@ def init_database():
         )
     ''')
 
+    # ============= MIGRACIÓN: Agregar columnas faltantes =============
+    # Fix: Loop de errores "no such column: processed"
+    # Migración idempotente (safe ejecutar múltiples veces)
+    print("🔧 Verificando columnas en webhooks...")
+    try:
+        cursor.execute("ALTER TABLE webhooks ADD COLUMN processed INTEGER DEFAULT 0")
+        print("✅ Columna 'processed' agregada a webhooks")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'processed' ya existe")
+        else:
+            raise
+
+    try:
+        cursor.execute("ALTER TABLE webhooks ADD COLUMN error_message TEXT")
+        print("✅ Columna 'error_message' agregada a webhooks")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'error_message' ya existe")
+        else:
+            raise
+
+    try:
+        cursor.execute("ALTER TABLE webhooks ADD COLUMN retry_count INTEGER DEFAULT 0")
+        print("✅ Columna 'retry_count' agregada a webhooks")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'retry_count' ya existe")
+        else:
+            raise
+    # ================================================================
+
     # ============= NUEVO: Crear tabla products =============
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS products (
@@ -69,6 +101,60 @@ def init_database():
             UNIQUE(product_id, shop)
         )
     ''')
+
+    # ============= MIGRACIÓN: Agregar columnas analytics a products =============
+    print("🔧 Verificando columnas analytics en products...")
+
+    # Columna: cost_price (precio de costo para cashflow)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN cost_price REAL")
+        print("✅ Columna 'cost_price' agregada a products")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'cost_price' ya existe")
+        else:
+            raise
+
+    # Columna: last_sale_date (última venta registrada)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN last_sale_date TIMESTAMP")
+        print("✅ Columna 'last_sale_date' agregada a products")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'last_sale_date' ya existe")
+        else:
+            raise
+
+    # Columna: total_sales_30d (ventas últimos 30 días)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN total_sales_30d INTEGER DEFAULT 0")
+        print("✅ Columna 'total_sales_30d' agregada a products")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'total_sales_30d' ya existe")
+        else:
+            raise
+
+    # Columna: velocity_daily (velocidad de venta diaria)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN velocity_daily REAL DEFAULT 0")
+        print("✅ Columna 'velocity_daily' agregada a products")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'velocity_daily' ya existe")
+        else:
+            raise
+
+    # Columna: category (clasificación ABC)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN category TEXT DEFAULT 'C'")
+        print("✅ Columna 'category' agregada a products")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e).lower():
+            print("✓ Columna 'category' ya existe")
+        else:
+            raise
+    # =======================================================================
     # =======================================================
 
     # ============= ÍNDICES PARA PERFORMANCE =============
@@ -206,48 +292,55 @@ def get_webhooks(limit=50, offset=0, source=None):
         
         # Query base - Solo columnas necesarias (omitir payload que puede ser grande)
         query = """
-            SELECT id, shop, topic, received_at, processed,
-                   error_message, retry_count
+            SELECT id, source, shop, topic, received_at, processed,
+                   error_message, retry_count, payload, alerts_triggered,
+                   files_generated, simulation
             FROM webhooks
         """
         params = []
-        
+
         # Agregar filtro si se especifica source
         if source:
             query += " WHERE source = ?"
             params.append(source)
-        
+
         # Ordenar por más reciente primero
         query += " ORDER BY received_at DESC"
-        
+
         # Paginación
         query += " LIMIT ? OFFSET ?"
         params.extend([limit, offset])
-        
+
         cursor.execute(query, params)
         rows = cursor.fetchall()
-        
+
         # Convertir a lista de diccionarios
         webhooks = []
         for row in rows:
-            webhook = {
-                "id": row["id"],
-                "source": row["source"],
-                "topic": row["topic"],
-                "shop": row["shop"],
-                "payload": json.loads(row["payload"]) if row["payload"] else None,
-                "alerts_triggered": json.loads(row["alerts_triggered"]) if row["alerts_triggered"] else None,
-                "files_generated": json.loads(row["files_generated"]) if row["files_generated"] else None,
-                "simulation": bool(row["simulation"]),
-                "received_at": row["received_at"]
-            }
-            webhooks.append(webhook)
-        
+            try:
+                webhook = {
+                    "id": row["id"],
+                    "source": row["source"],
+                    "topic": row["topic"],
+                    "shop": row["shop"],
+                    "payload": json.loads(row["payload"]) if row["payload"] else None,
+                    "alerts_triggered": json.loads(row["alerts_triggered"]) if row["alerts_triggered"] else None,
+                    "files_generated": json.loads(row["files_generated"]) if row["files_generated"] else None,
+                    "simulation": bool(row["simulation"]),
+                    "received_at": row["received_at"]
+                }
+                webhooks.append(webhook)
+            except (KeyError, IndexError) as e:
+                # Silencioso: row vacío o columna faltante es normal en DB vacía
+                continue
+
         conn.close()
         return webhooks
-        
+
     except Exception as e:
-        print(f"❌ Error obteniendo webhooks de DB: {e}")
+        # Solo loguear si NO es un "no rows" error
+        if "no item with that key" not in str(e).lower():
+            print(f"⚠️ Error obteniendo webhooks de DB: {e}")
         return []
 
 
@@ -296,30 +389,36 @@ def get_recent_webhooks(hours=24):
         
         # SQLite: datetime('now', '-24 hours') = hace 24 horas
         cursor.execute('''
-            SELECT id, shop, topic, received_at, processed
+            SELECT id, source, shop, topic, received_at, processed
             FROM webhooks
             WHERE received_at >= datetime('now', ? || ' hours')
             ORDER BY received_at DESC
         ''', (f'-{hours}',))
-        
+
         rows = cursor.fetchall()
-        
+
         webhooks = []
         for row in rows:
-            webhook = {
-                "id": row["id"],
-                "source": row["source"],
-                "topic": row["topic"],
-                "shop": row["shop"],
-                "received_at": row["received_at"]
-            }
-            webhooks.append(webhook)
-        
+            try:
+                webhook = {
+                    "id": row["id"],
+                    "source": row["source"],
+                    "topic": row["topic"],
+                    "shop": row["shop"],
+                    "received_at": row["received_at"]
+                }
+                webhooks.append(webhook)
+            except (KeyError, IndexError):
+                # Silencioso: skip rows con columnas faltantes
+                continue
+
         conn.close()
         return webhooks
-        
+
     except Exception as e:
-        print(f"❌ Error obteniendo webhooks recientes: {e}")
+        # Solo loguear si NO es error de DB vacía
+        if "no item with that key" not in str(e).lower() and "no such column" not in str(e).lower():
+            print(f"⚠️ Error obteniendo webhooks recientes: {e}")
         return []
 
 # ============================================================

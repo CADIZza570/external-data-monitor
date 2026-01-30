@@ -52,8 +52,9 @@ class AlertDeduplicator:
             "alerts_deduplicated": 0,
             "last_cleanup": time.time()
         }
-        
-        logger.info(f"✅ AlertDeduplicator inicializado (TTL: {default_ttl_hours}h)")
+
+        # Solo loguear en modo debug (silenciar spam en producción)
+        logger.debug(f"AlertDeduplicator inicializado (TTL: {default_ttl_hours}h)")
     
     def _make_key(self, alert_type: str, **identifiers) -> str:
         """
@@ -264,16 +265,18 @@ _global_deduplicator = None
 
 def get_deduplicator() -> AlertDeduplicator:
     """
-    Obtiene la instancia global del deduplicator.
-    
+    Obtiene la instancia global del deduplicator (singleton).
+
     Returns:
         AlertDeduplicator singleton
     """
     global _global_deduplicator
-    
+
     if _global_deduplicator is None:
         _global_deduplicator = AlertDeduplicator(default_ttl_hours=24)
-    
+        # Solo loguear UNA VEZ cuando se crea el singleton
+        logger.info("✅ AlertDeduplicator singleton creado (TTL: 24h)")
+
     return _global_deduplicator
 
 
