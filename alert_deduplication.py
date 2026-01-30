@@ -274,8 +274,8 @@ def get_deduplicator() -> AlertDeduplicator:
 
     if _global_deduplicator is None:
         _global_deduplicator = AlertDeduplicator(default_ttl_hours=24)
-        # Solo loguear UNA VEZ cuando se crea el singleton
-        logger.info("✅ AlertDeduplicator singleton creado (TTL: 24h)")
+        # Solo loguear en DEBUG (silenciar spam en producción)
+        logger.debug("✅ AlertDeduplicator singleton creado (TTL: 24h)")
 
     return _global_deduplicator
 
