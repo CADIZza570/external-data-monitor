@@ -77,7 +77,7 @@ GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 
 # Importar funciones de base de datos
-from database import save_webhook, get_webhooks, get_webhook_count, save_product, save_sale, calculate_alert_priority, get_trending_rank
+from database import save_webhook, get_webhooks, get_webhook_count, save_product, save_sale, calculate_alert_priority, get_trending_rank, init_database
 # ✅ NUEVO: Sistema anti-duplicados
 from alert_deduplication import get_deduplicator, ALERT_TTL_CONFIG
 from business_adapter import BusinessAdapter  # ← NUEVA
@@ -100,6 +100,11 @@ MAX_PRODUCTS_PER_WEBHOOK = 10000  # Límite de productos por request
 # Ejecutamos validación al iniciar el servidor
 # Esto asegura que cualquier error de config se detecte antes de levantar Flask
 validate_config(strict=False)  # ✅ Modo no-estricto para Railway
+
+# ✅ CRÍTICO: Inicializar DB y ejecutar migraciones al arrancar
+print("🔧 Inicializando base de datos y ejecutando migraciones...")
+init_database()
+print("✅ Base de datos lista")
 
 # =========================
 # 📝 LOGGING MEJORADO (Archivo + Consola)
