@@ -1860,3 +1860,156 @@ def debug_external_signals():
             "success": False,
             "error": str(e)
         }), 500
+
+@cashflow_bp.route('/api/admin/seed-columbus', methods=['POST'])
+def admin_seed_columbus():
+    """
+    🌱 ENDPOINT ADMIN: Seed Columbus Winter Catalog
+    
+    Ejecuta seed para poblar DB con productos Columbus + ventas históricas.
+    
+    Body JSON:
+        - admin_key: "tiburon-seed-2026" (o env ADMIN_SEED_KEY)
+        - dry_run: true/false (default: false)
+    
+    Example:
+        POST /api/admin/seed-columbus
+        {"admin_key": "tiburon-seed-2026", "dry_run": false}
+    
+    Returns:
+        Resumen de productos, proveedores y ventas insertadas
+    """
+    import os
+    from datetime import datetime, timedelta
+    import random
+    
+    # Verificar autorización
+    try:
+        data = request.get_json() or {}
+    except:
+        data = {}
+    
+    admin_key = data.get('admin_key', '')
+    expected_key = os.getenv('ADMIN_SEED_KEY', 'tiburon-seed-2026')
+    
+    if admin_key != expected_key:
+        return jsonify({
+            "success": False,
+            "error": "Unauthorized - invalid or missing admin_key"
+        }), 401
+    
+    dry_run = data.get('dry_run', False)
+    
+    try:
+        # Productos Columbus Winter (compacto)
+        COLUMBUS_PRODUCTS = [
+            {"product_id": "WINTER-001", "name": "Chaqueta Térmica Winter Pro", "sku": "JACKET-WINTER-01", "stock": 12, "price": 189.99, "cost_price": 95.00, "velocity_daily": 3.2, "total_sales_30d": 96, "total_sales_60d": 180, "category": "A", "supplier": "Winter Gear Supply Co.", "lead_time_days": 7, "moq": 25},
+            {"product_id": "WINTER-002", "name": "Boots Waterproof Premium", "sku": "BOOTS-WP-01", "stock": 8, "price": 159.99, "cost_price": 80.00, "velocity_daily": 2.8, "total_sales_30d": 84, "total_sales_60d": 160, "category": "A", "supplier": "FootGear Wholesale", "lead_time_days": 10, "moq": 30},
+            {"product_id": "WINTER-003", "name": "Guantes Térmicos Arctic", "sku": "GLOVES-ARC-01", "stock": 25, "price": 45.99, "cost_price": 18.00, "velocity_daily": 4.5, "total_sales_30d": 135, "total_sales_60d": 250, "category": "A", "supplier": "Winter Gear Supply Co.", "lead_time_days": 5, "moq": 50},
+            {"product_id": "WINTER-004", "name": "Bufanda Lana Merino", "sku": "SCARF-WOOL-01", "stock": 40, "price": 39.99, "cost_price": 15.00, "velocity_daily": 1.8, "total_sales_30d": 54, "total_sales_60d": 100, "category": "B", "supplier": "Textile Partners Inc.", "lead_time_days": 14, "moq": 40},
+            {"product_id": "WINTER-005", "name": "Gorro Térmico Fleece", "sku": "HAT-FLEECE-01", "stock": 60, "price": 29.99, "cost_price": 10.00, "velocity_daily": 2.1, "total_sales_30d": 63, "total_sales_60d": 120, "category": "B", "supplier": "Winter Gear Supply Co.", "lead_time_days": 7, "moq": 60},
+            {"product_id": "WINTER-006", "name": "Abrigo Invierno Classic", "sku": "COAT-CLASSIC-01", "stock": 15, "price": 249.99, "cost_price": 130.00, "velocity_daily": 1.2, "total_sales_30d": 36, "total_sales_60d": 70, "category": "B", "supplier": "Premium Outerwear Ltd.", "lead_time_days": 14, "moq": 20},
+            {"product_id": "WINTER-007", "name": "Calentadores Manos", "sku": "WARMERS-HAND-01", "stock": 200, "price": 12.99, "cost_price": 4.00, "velocity_daily": 0.8, "total_sales_30d": 24, "total_sales_60d": 45, "category": "C", "supplier": "Bulk Supplies Co.", "lead_time_days": 3, "moq": 100},
+            {"product_id": "SUMMER-001", "name": "Sandalias Verano Beach", "sku": "SANDALS-BEACH-01", "stock": 150, "price": 49.99, "cost_price": 20.00, "velocity_daily": 0.0, "total_sales_30d": 0, "total_sales_60d": 1, "category": "Dead", "supplier": "Summer Fashion Inc.", "lead_time_days": 21, "moq": 100},
+        ]
+        
+        if dry_run:
+            return jsonify({
+                "success": True,
+                "dry_run": True,
+                "message": "Dry run - no se insertaron datos",
+                "would_insert": {
+                    "products": len(COLUMBUS_PRODUCTS),
+                    "suppliers": 6,
+                    "estimated_sales_30d": "~350 registros"
+                },
+                "products_preview": [{"sku": p["sku"], "name": p["name"], "cat": p["category"], "vel": p["velocity_daily"]} for p in COLUMBUS_PRODUCTS[:5]]
+            }), 200
+        
+        # Insertar productos
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        products_inserted = 0
+        for p in COLUMBUS_PRODUCTS:
+            cursor.execute("""
+                INSERT OR REPLACE INTO products
+                (product_id, name, sku, stock, price, cost_price, velocity_daily,
+                 total_sales_30d, total_sales_60d, category, shop, last_updated, last_sale_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                p['product_id'], p['name'], p['sku'], p['stock'], p['price'],
+                p['cost_price'], p['velocity_daily'], p['total_sales_30d'],
+                p.get('total_sales_60d', p['total_sales_30d'] * 2), p['category'],
+                'columbus-shop', datetime.now().isoformat(),
+                (datetime.now() - timedelta(days=1)).isoformat() if p['velocity_daily'] > 0 else None
+            ))
+            products_inserted += 1
+        
+        # Insertar proveedores
+        unique_suppliers = list(set([p['supplier'] for p in COLUMBUS_PRODUCTS]))
+        suppliers_inserted = 0
+        for supplier in unique_suppliers:
+            cursor.execute("""
+                INSERT OR IGNORE INTO suppliers (name, lead_time_days, minimum_order_qty, notes)
+                VALUES (?, ?, ?, ?)
+            """, (supplier, 10, 50, 'Columbus winter catalog'))
+            if cursor.rowcount > 0:
+                suppliers_inserted += 1
+        
+        # Generar ventas históricas (últimos 30 días)
+        today = datetime.now()
+        sales_inserted = 0
+        
+        for p in COLUMBUS_PRODUCTS:
+            if p['velocity_daily'] == 0:
+                continue
+            
+            for days_ago in range(30, 0, -1):
+                sale_date = today - timedelta(days=days_ago)
+                daily_sales = max(0, int(p['velocity_daily'] + random.uniform(-p['velocity_daily'] * 0.3, p['velocity_daily'] * 0.3)))
+                
+                # Spike frío extremo (días 10-15)
+                if 10 <= days_ago <= 15 and ('chaqueta' in p['name'].lower() or 'boots' in p['name'].lower()):
+                    daily_sales = int(daily_sales * 1.5)
+                
+                for sale_num in range(daily_sales):
+                    order_id = f"ORD-{sale_date.strftime('%Y%m%d')}-{p['sku']}-{sale_num:03d}"
+                    try:
+                        cursor.execute("""
+                            INSERT INTO sales_history (sku, product_name, quantity, sale_date, order_id, shop)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (p['sku'], p['name'], 1, sale_date.isoformat(), order_id, 'columbus-shop'))
+                        sales_inserted += 1
+                    except:
+                        pass  # Ignore duplicates
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"✅ Columbus seed completed: {products_inserted} products, {suppliers_inserted} suppliers, {sales_inserted} sales")
+        
+        return jsonify({
+            "success": True,
+            "message": "🦈 Columbus Winter Catalog seeded successfully",
+            "inserted": {
+                "products": products_inserted,
+                "suppliers": suppliers_inserted,
+                "sales_history_30d": sales_inserted
+            },
+            "next_steps": [
+                "Verificar: GET /api/cashflow/summary",
+                "Pulso manual: POST /api/pulse/trigger (si existe)",
+                "Ver datos: GET /api/products"
+            ],
+            "timestamp": datetime.now().isoformat()
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"❌ Error seeding Columbus catalog: {e}")
+        import traceback
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
