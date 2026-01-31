@@ -2072,3 +2072,58 @@ def admin_seed_fast():
     except Exception as e:
         logger.error(f"❌ Error seed rápido: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+@cashflow_bp.route('/api/admin/seed-simple', methods=['POST'])
+def admin_seed_simple():
+    """
+    🌱 SEED ULTRA-SIMPLE: 3 productos Columbus
+
+    Endpoint minimalista sin dependencias complejas.
+    Solo inserta productos directamente.
+
+    Body: {"key": "tiburon2026"}
+    """
+    try:
+        data = request.get_json() or {}
+        if data.get('key') != 'tiburon2026':
+            return jsonify({"error": "Unauthorized"}), 401
+
+        from datetime import datetime, timedelta
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 3 productos críticos
+        products = [
+            ("WINTER-001", "Chaqueta Térmica Winter Pro", "JACKET-WINTER-01", 12, 189.99, 95.00, 3.2, 96, "A"),
+            ("WINTER-002", "Boots Waterproof Premium", "BOOTS-WP-01", 8, 159.99, 80.00, 2.8, 84, "A"),
+            ("WINTER-003", "Guantes Térmicos Arctic", "GLOVES-ARC-01", 25, 45.99, 18.00, 4.5, 135, "A"),
+        ]
+
+        now = datetime.now().isoformat()
+        yesterday = (datetime.now() - timedelta(days=1)).isoformat()
+
+        inserted = 0
+        for p in products:
+            try:
+                cursor.execute("""
+                    INSERT OR REPLACE INTO products
+                    (product_id, name, sku, stock, price, cost_price, velocity_daily, total_sales_30d, category, shop, last_updated, last_sale_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (*p, "columbus-shop", now, yesterday))
+                inserted += 1
+            except Exception as e:
+                print(f"Error inserting {p[2]}: {e}")
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "inserted": inserted,
+            "products": [p[2] for p in products]
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
