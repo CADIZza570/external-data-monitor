@@ -159,6 +159,57 @@ def migrate_database():
         ''')
         print("✅ Índice 'idx_insights_type_expires' verificado/creado")
 
+        # ============================================================================
+        # 🧠 TIBURÓN EVOLUTIVO - Tabla de Métricas de Interacción
+        # ============================================================================
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS interaction_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT DEFAULT 'fer',
+                button_id TEXT NOT NULL,
+                action_type TEXT,
+                context TEXT,
+                sku TEXT,
+                units INTEGER,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                metadata TEXT
+            )
+        ''')
+        print("✅ Tabla 'interaction_metrics' verificada/creada")
+
+        # Crear índices para consultas rápidas
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_interaction_user_timestamp
+            ON interaction_metrics(user_id, timestamp DESC)
+        ''')
+        print("✅ Índice 'idx_interaction_user_timestamp' verificado/creado")
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_interaction_button
+            ON interaction_metrics(button_id, timestamp DESC)
+        ''')
+        print("✅ Índice 'idx_interaction_button' verificado/creado")
+
+        # ============================================================================
+        # 📊 POST-MORTEM - Tabla de Análisis de Silencios
+        # ============================================================================
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS freeze_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                freeze_timestamp TIMESTAMP NOT NULL,
+                thaw_timestamp TIMESTAMP,
+                frozen_by TEXT,
+                thawed_by TEXT,
+                reason TEXT,
+                duration_hours REAL,
+                opportunity_cost REAL,
+                post_mortem_sent BOOLEAN DEFAULT 0,
+                post_mortem_timestamp TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        print("✅ Tabla 'freeze_sessions' verificada/creada")
+
         conn.commit()
         conn.close()
 

@@ -1014,6 +1014,23 @@ def roi_simulator():
         sku = data['sku']
         units = int(data['units'])
         send_to_discord = data.get('send_to_discord', False)
+        is_aggressive = data.get('aggressive', False)  # Detectar modo agresivo
+
+        # 🧠 TRACKING: Si es simulación agresiva, registrar click
+        if is_aggressive or units > 50:  # Considerar agresivo si units > 50
+            try:
+                from interaction_tracker import InteractionTracker
+                tracker = InteractionTracker()
+                tracker.track_click(
+                    button_id="simulate_aggressive",
+                    action_type="simulate",
+                    context=f"Aggressive simulation for {sku}",
+                    sku=sku,
+                    units=units,
+                    metadata={"aggressive": is_aggressive}
+                )
+            except Exception as e:
+                pass
 
         # Ejecutar simulación
         engine = StatsEngine()
@@ -1169,6 +1186,22 @@ def execute_reorder():
                 "error": "Debes confirmar la acción con confirm: true"
             }), 400
 
+        # 🧠 TRACKING: Registrar click del botón
+        try:
+            from interaction_tracker import InteractionTracker
+            tracker = InteractionTracker()
+            tracker.track_click(
+                button_id="approve_reorder",
+                action_type="reorder",
+                context=f"Reorder approved for {sku}",
+                sku=sku,
+                units=units,
+                metadata={"confirmed": confirm}
+            )
+        except Exception as e:
+            # No fallar si el tracking falla
+            pass
+
         # TODO: Integrar con sistema de compras real (Shopify Draft Orders, etc.)
         # Por ahora, solo registramos la acción
 
@@ -1289,6 +1322,19 @@ def execute_liquidate():
                 "status": "preview",
                 "message": "Preview de liquidación. Envía confirm: true para ejecutar."
             }), 200
+
+        # 🧠 TRACKING: Registrar click del botón de liquidar
+        try:
+            from interaction_tracker import InteractionTracker
+            tracker = InteractionTracker()
+            tracker.track_click(
+                button_id="liquidate_dead_stock",
+                action_type="liquidate",
+                context=f"Liquidating {len(skus)} products",
+                metadata={"skus": skus, "discount_pct": discount_pct}
+            )
+        except Exception as e:
+            pass
 
         # TODO: Integrar con sistema real de descuentos/promociones
         # Por ahora, solo registramos
@@ -1660,4 +1706,147 @@ def mobile_pulse():
             "status": "error",
             "message": f"Error: {str(e)}",
             "metrics": {}
+        }), 500
+
+
+# ============================================================================
+# 📊 POST-MORTEM - Debug & Testing Endpoints
+# ============================================================================
+
+@cashflow_bp.route('/api/debug/post-mortem', methods=['GET'])
+def debug_post_mortem():
+    """
+    Endpoint de debug para forzar post-mortem de la última freeze session.
+
+    Query params:
+        - session_id: ID específico de sesión (opcional)
+
+    Returns:
+        Análisis post-mortem completo
+    """
+    try:
+        from post_mortem import PostMortemAnalyzer
+
+        analyzer = PostMortemAnalyzer()
+
+        # Obtener session_id del query param o usar la más reciente
+        session_id = request.args.get('session_id', type=int)
+
+        if session_id:
+            # Analizar sesión específica
+            analysis = analyzer.generate_post_mortem(session_id)
+        else:
+            # Obtener sesión más reciente cerrada
+            pending = analyzer.get_pending_post_mortems(hours_after_thaw=0)
+
+            if not pending:
+                return jsonify({
+                    "success": False,
+                    "message": "No hay freeze sessions cerradas para analizar"
+                }), 404
+
+            session_id = pending[-1]  # La más reciente
+            analysis = analyzer.generate_post_mortem(session_id)
+
+        if "error" in analysis:
+            return jsonify({
+                "success": False,
+                "error": analysis["error"]
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "session_id": session_id,
+            "analysis": analysis
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@cashflow_bp.route('/api/debug/interaction-metrics', methods=['GET'])
+def debug_interaction_metrics():
+    """
+    Endpoint de debug para ver métricas de interacción.
+
+    Query params:
+        - days: Días a analizar (default: 7)
+
+    Returns:
+        Patrón de clics y stats
+    """
+    try:
+        from interaction_tracker import InteractionTracker
+
+        tracker = InteractionTracker()
+        days = request.args.get('days', type=int, default=7)
+
+        pattern = tracker.get_recent_pattern(days=days)
+        history = tracker.get_click_history(limit=10)
+        stats = tracker.get_button_stats(days=days)
+
+        return jsonify({
+            "success": True,
+            "pattern": pattern,
+            "recent_clicks": history,
+            "button_stats": stats
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@cashflow_bp.route('/api/debug/external-signals', methods=['GET'])
+def debug_external_signals():
+    """
+    Endpoint de debug para ver señales externas (clima + feriados).
+
+    Query params:
+        - product_name: Nombre del producto a analizar (default: "Chaqueta Térmica Winter Pro")
+        - use_mock: Si True, usa datos mock (default: True)
+
+    Returns:
+        Análisis completo de señales externas
+    """
+    try:
+        from external_signals_engine import ExternalSignalsEngine
+
+        engine = ExternalSignalsEngine()
+
+        product_name = request.args.get('product_name', 'Chaqueta Térmica Winter Pro')
+        use_mock = request.args.get('use_mock', 'true').lower() == 'true'
+
+        # Obtener datos de clima
+        weather = engine.get_weather_data(use_mock=use_mock)
+
+        # Obtener feriados
+        holidays = engine.get_upcoming_holidays(days_ahead=30)
+
+        # Analizar impacto en producto
+        weather_impact = engine.analyze_weather_impact(product_name, weather)
+        holiday_impact = engine.analyze_holiday_impact(product_name, days_ahead=30)
+
+        # Multiplicador contextual total
+        context = engine.get_contextual_multiplier(product_name, use_mock_weather=use_mock)
+
+        return jsonify({
+            "success": True,
+            "product_name": product_name,
+            "weather_data": weather,
+            "upcoming_holidays": holidays,
+            "weather_impact": weather_impact,
+            "holiday_impact": holiday_impact,
+            "contextual_multiplier": context
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
         }), 500

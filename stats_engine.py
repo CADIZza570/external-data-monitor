@@ -68,6 +68,37 @@ class StatsEngine:
         conn.close()
         return history if history else [0] * days
 
+    def get_adaptive_decay_factor(self, base_decay: float = 0.3) -> float:
+        """
+        Calcula decay factor adaptativo basado en patrones de clics del usuario.
+
+        Si el usuario hace muchos clics "Simular Agresivo", aumenta el decay
+        para dar más peso a datos recientes (más agresivo).
+
+        Args:
+            base_decay: Factor base (default 0.3 = 30% peso adicional)
+
+        Returns:
+            Decay factor ajustado (0.3 - 0.45)
+        """
+        try:
+            from interaction_tracker import InteractionTracker
+
+            tracker = InteractionTracker(self.db_path)
+            pattern = tracker.get_recent_pattern(days=7)
+
+            # Boost sugerido según clics agresivos
+            boost = pattern.get("suggested_decay_boost", 0.0)
+
+            # Decay final (máximo 0.45 = 45% peso adicional)
+            adaptive_decay = min(base_decay + boost, 0.45)
+
+            return adaptive_decay
+
+        except Exception as e:
+            # Si falla, usar decay base
+            return base_decay
+
     def calculate_statistics(self, data: List[float], decay_factor: float = 0.3) -> Dict:
         """
         Calcula media y desviación estándar con decay (más peso a datos recientes)
@@ -189,13 +220,14 @@ class StatsEngine:
             "breakeven_range": [round(breakeven_min, 1), round(breakeven_max, 1)]
         }
 
-    def calculate_roi_simulation(self, sku: str, units: int) -> Dict:
+    def calculate_roi_simulation(self, sku: str, units: int, use_external_signals: bool = True) -> Dict:
         """
         Calcula ROI completo con simulación para un SKU
 
         Args:
             sku: SKU del producto
             units: Unidades a reordenar
+            use_external_signals: Si True, integra señales externas (clima + feriados)
 
         Returns:
             Diccionario completo con ROI, probabilidades y narrativa
@@ -222,8 +254,31 @@ class StatsEngine:
             return {"error": f"Producto {sku} sin costo definido"}
 
         # 2. Obtener historial y calcular estadísticas
+        # 🧠 DECAY ADAPTATIVO: Ajusta según clics del usuario
+        adaptive_decay = self.get_adaptive_decay_factor(base_decay=0.3)
         history = self.get_sales_history(sku, days=30)
-        stats = self.calculate_statistics(history, decay_factor=0.3)
+        stats = self.calculate_statistics(history, decay_factor=adaptive_decay)
+
+        # 🌡️ SEÑALES EXTERNAS: Clima + Feriados (Columbus, Ohio)
+        contextual_multiplier = 1.0
+        external_reason = None
+
+        if use_external_signals:
+            try:
+                from external_signals_engine import ExternalSignalsEngine
+                signals = ExternalSignalsEngine()
+                context = signals.get_contextual_multiplier(name, use_mock_weather=True)
+
+                if context["has_any_impact"]:
+                    contextual_multiplier = context["final_multiplier"]
+                    external_reason = context["combined_reason"]
+
+                    # Ajustar mean con multiplicador contextual
+                    stats["mean"] = stats["mean"] * contextual_multiplier
+
+            except Exception as e:
+                # Si falla, continuar sin señales externas
+                pass
 
         # 3. Simulación Monte Carlo
         simulation = self.monte_carlo_simulation(
@@ -262,7 +317,8 @@ class StatsEngine:
             roi_range=simulation["confidence_85"],
             breakeven=simulation["breakeven_days"],
             risk_level=risk_level,
-            category=category
+            category=category,
+            external_reason=external_reason  # 🌡️ Contexto externo
         )
 
         return {
@@ -282,6 +338,9 @@ class StatsEngine:
             "current_stock": stock,
             "velocity_current": velocity_current,
             "velocity_stats": stats,
+            "decay_factor_used": adaptive_decay,  # 🧠 Decay adaptativo usado
+            "contextual_multiplier": contextual_multiplier,  # 🌡️ Clima + Feriados
+            "external_reason": external_reason,  # Por qué del spike
             "narrative": narrative
         }
 
@@ -296,7 +355,8 @@ class StatsEngine:
         roi_range: List[float],
         breakeven: float,
         risk_level: str,
-        category: str
+        category: str,
+        external_reason: Optional[str] = None
     ) -> str:
         """Genera narrativa estilo Tiburón para la simulación"""
 
@@ -329,9 +389,13 @@ class StatsEngine:
 
 💰 Invertís ${investment:,.0f} → Recuperás ${revenue:,.0f} en ~{breakeven:.0f} días
 📊 ROI: **{roi:.1f}%** (Confianza 85%: {roi_range[0]:.1f}% - {roi_range[1]:.1f}%)
-{risk_emoji[risk_level]} Riesgo: **{risk_level.upper()}**
+{risk_emoji[risk_level]} Riesgo: **{risk_level.upper()}**"""
 
-**Veredicto:** Con {units} unidades, {tone}. {'Dale gas! 🔥' if roi >= 30 else 'Ajustar o liquidar primero.' if roi < 15 else 'Proceder con cautela.'}"""
+        # 🌡️ CONTEXTO EXTERNO: Por qué del spike
+        if external_reason:
+            narrative += f"\n\n🌡️ **Contexto:** {external_reason}"
+
+        narrative += f"\n\n**Veredicto:** Con {units} unidades, {tone}. {'Dale gas! 🔥' if roi >= 30 else 'Ajustar o liquidar primero.' if roi < 15 else 'Proceder con cautela.'}"
 
         return narrative
 
