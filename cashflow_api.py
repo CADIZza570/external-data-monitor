@@ -1935,13 +1935,12 @@ def admin_seed_columbus():
             cursor.execute("""
                 INSERT OR REPLACE INTO products
                 (product_id, name, sku, stock, price, cost_price, velocity_daily,
-                 total_sales_30d, total_sales_60d, category, shop, last_updated, last_sale_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 total_sales_30d, category, shop, last_updated, last_sale_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 p['product_id'], p['name'], p['sku'], p['stock'], p['price'],
                 p['cost_price'], p['velocity_daily'], p['total_sales_30d'],
-                p.get('total_sales_60d', p['total_sales_30d'] * 2), p['category'],
-                'columbus-shop', datetime.now().isoformat(),
+                p['category'], 'columbus-shop', datetime.now().isoformat(),
                 (datetime.now() - timedelta(days=1)).isoformat() if p['velocity_daily'] > 0 else None
             ))
             products_inserted += 1
