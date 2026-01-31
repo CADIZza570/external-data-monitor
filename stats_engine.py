@@ -7,7 +7,7 @@ Monte Carlo Light + análisis estadístico de ventas
 import sqlite3
 import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 import random
 import math
 
