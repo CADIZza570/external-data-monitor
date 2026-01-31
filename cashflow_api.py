@@ -1809,18 +1809,28 @@ def debug_external_signals():
 
     Query params:
         - product_name: Nombre del producto a analizar (default: "Chaqueta Térmica Winter Pro")
-        - use_mock: Si True, usa datos mock (default: True)
+        - use_mock: Si True, usa datos mock (default: False - usa API real si hay key)
 
     Returns:
         Análisis completo de señales externas
     """
     try:
         from external_signals_engine import ExternalSignalsEngine
+        import os
 
-        engine = ExternalSignalsEngine()
+        # ✅ Crear engine con API key del entorno
+        api_key = os.getenv('OPENWEATHER_API_KEY')
+        engine = ExternalSignalsEngine(api_key=api_key)
 
         product_name = request.args.get('product_name', 'Chaqueta Térmica Winter Pro')
-        use_mock = request.args.get('use_mock', 'true').lower() == 'true'
+
+        # ✅ DEFAULT A FALSE: usa API real si existe key, sino fallback a mock automático
+        use_mock = request.args.get('use_mock', 'false').lower() == 'true'
+
+        # ⚠️ Log si no hay API key
+        if not api_key and not use_mock:
+            logger.warning("⚠️ OPENWEATHER_API_KEY no configurada - usando datos mock como fallback")
+            use_mock = True
 
         # Obtener datos de clima
         weather = engine.get_weather_data(use_mock=use_mock)
