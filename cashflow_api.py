@@ -27,7 +27,11 @@ import csv
 import io
 import os
 import json
+import logging
 from datetime import datetime, timedelta
+
+# Logger setup
+logger = logging.getLogger(__name__)
 
 # Importar motores del Tiburón
 from stats_engine import StatsEngine
