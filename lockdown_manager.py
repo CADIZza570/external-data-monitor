@@ -104,6 +104,19 @@ class LockdownManager:
 
         conn.commit()
 
+        # 📊 POST-MORTEM: Registrar freeze session para análisis futuro
+        try:
+            from post_mortem import PostMortemAnalyzer
+            analyzer = PostMortemAnalyzer(self.db_path)
+            analyzer.record_freeze_session(
+                freeze_timestamp=datetime.now(),
+                frozen_by=frozen_by,
+                reason=reason
+            )
+        except Exception as e:
+            # No fallar si el post-mortem falla
+            pass
+
         # Registrar evento de seguridad
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS security_events (
@@ -172,6 +185,18 @@ class LockdownManager:
         """, (now, thawed_by, now))
 
         conn.commit()
+
+        # 📊 POST-MORTEM: Cerrar freeze session
+        try:
+            from post_mortem import PostMortemAnalyzer
+            analyzer = PostMortemAnalyzer(self.db_path)
+            analyzer.close_freeze_session(
+                thaw_timestamp=datetime.now(),
+                thawed_by=thawed_by
+            )
+        except Exception as e:
+            # No fallar si el post-mortem falla
+            pass
 
         # Registrar evento de seguridad
         cursor.execute("""
