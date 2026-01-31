@@ -87,11 +87,12 @@ class ExternalSignalsEngine:
         """
         if use_mock or not self.api_key:
             # Mock data: Frío extremo en Columbus (invierno)
+            logger.warning("⚠️ Usando datos MOCK de clima (API key no disponible o use_mock=True)")
             return {
                 "temp_celsius": -22.0,
                 "condition": "Snow",
                 "humidity": 85,
-                "description": "Nieve ligera",
+                "description": "Nieve ligera (MOCK)",
                 "wind_speed": 15,
                 "feels_like": -28.0
             }
@@ -104,12 +105,13 @@ class ExternalSignalsEngine:
                 "units": "metric"  # Celsius
             }
 
+            logger.info(f"🌡️ Llamando a OpenWeather API para {self.city}...")
             response = requests.get(url, params=params, timeout=5)
 
             if response.status_code == 200:
                 data = response.json()
 
-                return {
+                weather_result = {
                     "temp_celsius": data["main"]["temp"],
                     "condition": data["weather"][0]["main"],
                     "humidity": data["main"]["humidity"],
@@ -117,12 +119,17 @@ class ExternalSignalsEngine:
                     "wind_speed": data.get("wind", {}).get("speed", 0),
                     "feels_like": data["main"].get("feels_like", data["main"]["temp"])
                 }
+
+                logger.info(f"✅ Clima REAL obtenido: {weather_result['temp_celsius']:.1f}°C, {weather_result['condition']}")
+                return weather_result
             else:
-                logger.warning(f"Weather API error: {response.status_code}")
+                logger.warning(f"❌ Weather API error {response.status_code}: {response.text[:200]}")
+                logger.warning(f"🔄 Fallback a datos MOCK")
                 return self.get_weather_data(use_mock=True)
 
         except Exception as e:
-            logger.error(f"Error fetching weather: {e}")
+            logger.error(f"❌ Error fetching weather: {e}")
+            logger.warning(f"🔄 Fallback a datos MOCK")
             return self.get_weather_data(use_mock=True)
 
     def get_upcoming_holidays(self, days_ahead: int = 7) -> List[Dict]:
