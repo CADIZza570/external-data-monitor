@@ -493,6 +493,18 @@ def save_product(product_id, name, sku, stock, price, shop, cost_price=None,
         True si se guardó exitosamente, False si hubo error
     """
     try:
+        # Sanitizar price (Shopify webhook puede enviar strings)
+        try:
+            price = float(price) if isinstance(price, str) else price
+        except (ValueError, TypeError):
+            price = 0
+
+        # Sanitizar stock también
+        try:
+            stock = int(stock) if isinstance(stock, str) else stock
+        except (ValueError, TypeError):
+            stock = 0
+
         # Auto-calcular velocity y category si no se proporcionan
         if velocity_daily is None or category is None:
             calc_velocity, calc_category = calculate_velocity_and_category(sku, total_sales_30d)
@@ -598,6 +610,12 @@ def calculate_alert_priority(velocity, stock, price, trending_rank=None):
         - Precio alto = boost proporcional
         - Stock 0 = siempre prioridad 100
     """
+    # Convertir price a float (Shopify webhook envía strings)
+    try:
+        price = float(price) if isinstance(price, str) else price
+    except (ValueError, TypeError):
+        price = 0  # Fallback si price es None o inválido
+
     # Stock 0 = siempre crítico
     if stock <= 0:
         return 100
