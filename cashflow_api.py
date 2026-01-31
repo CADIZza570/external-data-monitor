@@ -2012,3 +2012,63 @@ def admin_seed_columbus():
             "error": str(e),
             "traceback": traceback.format_exc()
         }), 500
+
+@cashflow_bp.route('/api/admin/seed-fast', methods=['POST'])
+def admin_seed_fast():
+    """
+    🚀 SEED RÁPIDO: Solo productos, sin ventas históricas
+    
+    Inserta productos Columbus sin timeout (< 5 segundos).
+    
+    Body JSON:
+        - admin_key: "tiburon-seed-2026"
+    """
+    import os
+    from datetime import datetime, timedelta
+    
+    try:
+        data = request.get_json() or {}
+    except:
+        data = {}
+    
+    admin_key = data.get('admin_key', '')
+    expected_key = os.getenv('ADMIN_SEED_KEY', 'tiburon-seed-2026')
+    
+    if admin_key != expected_key:
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        PRODUCTS = [
+            ("WINTER-001", "Chaqueta Térmica Winter Pro", "JACKET-WINTER-01", 12, 189.99, 95.00, 3.2, 96, "A"),
+            ("WINTER-002", "Boots Waterproof Premium", "BOOTS-WP-01", 8, 159.99, 80.00, 2.8, 84, "A"),
+            ("WINTER-003", "Guantes Térmicos Arctic", "GLOVES-ARC-01", 25, 45.99, 18.00, 4.5, 135, "A"),
+            ("WINTER-004", "Bufanda Lana Merino", "SCARF-WOOL-01", 40, 39.99, 15.00, 1.8, 54, "B"),
+            ("WINTER-005", "Gorro Térmico Fleece", "HAT-FLEECE-01", 60, 29.99, 10.00, 2.1, 63, "B"),
+        ]
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        for p in PRODUCTS:
+            cursor.execute("""
+                INSERT OR REPLACE INTO products
+                (product_id, name, sku, stock, price, cost_price, velocity_daily, total_sales_30d, category, shop, last_updated, last_sale_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (*p, "columbus-shop", datetime.now().isoformat(), (datetime.now() - timedelta(days=1)).isoformat()))
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"✅ Seed rápido: {len(PRODUCTS)} productos insertados")
+        
+        return jsonify({
+            "success": True,
+            "message": "🦈 Seed rápido completado",
+            "inserted": {"products": len(PRODUCTS)},
+            "note": "Sin ventas históricas (más rápido)",
+            "timestamp": datetime.now().isoformat()
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"❌ Error seed rápido: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
