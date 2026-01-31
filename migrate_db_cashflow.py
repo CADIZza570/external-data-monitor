@@ -210,6 +210,48 @@ def migrate_database():
         ''')
         print("✅ Tabla 'freeze_sessions' verificada/creada")
 
+        # ============================================================================
+        # 🏭 SUPPLIERS - Tabla de Proveedores (para Seed Columbus)
+        # ============================================================================
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS suppliers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                lead_time_days INTEGER DEFAULT 14,
+                minimum_order_qty INTEGER DEFAULT 10,
+                shipping_cost REAL DEFAULT 0.0,
+                reliability_score REAL DEFAULT 0.95,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        print("✅ Tabla 'suppliers' verificada/creada")
+
+        # Índice para búsquedas por nombre
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_suppliers_name
+            ON suppliers(name)
+        ''')
+        print("✅ Índice 'idx_suppliers_name' verificado/creado")
+
+        # ============================================================================
+        # 🔗 PRODUCT_SUPPLIERS - Relación Producto-Proveedor
+        # ============================================================================
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS product_suppliers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sku TEXT NOT NULL,
+                supplier_name TEXT NOT NULL,
+                lead_time_days INTEGER,
+                moq INTEGER,
+                cost_price REAL,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (sku) REFERENCES products(sku)
+            )
+        ''')
+        print("✅ Tabla 'product_suppliers' verificada/creada")
+
         conn.commit()
         conn.close()
 
