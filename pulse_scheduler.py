@@ -1,316 +1,465 @@
+#!/usr/bin/env python3
 """
-🗓️ PULSE SCHEDULER - El Corazón del Centinela
-Envía resumen narrativo diario a Discord con el "Pulso de La Chaparrita"
+🕐 PULSE SCHEDULER - Despertador del Tiburón Predictivo
 
-Track 3.0: "El Primer Pulso"
-Automatiza el envío de mensajes diarios con personalidad chilena/callejera,
-transformando métricas frías en consejos accionables.
+Envia Sticker diario a las 8:00 AM con:
+- Resumen Cash Flow
+- ROI Top 3 productos (con contexto clima Columbus + feriados)
+- Alertas de liquidez
+- Recomendaciones predictivas
 
-Funcionalidades:
-- Fetch de datos desde API local (cashflow summary + reorder calculator)
-- Generación de mensaje narrativo con narrative_engine.py
-- Envío a Discord con retry logic
-- Scheduler diario a las 8:00 AM
-- Logging de éxito/fallo
+Modos:
+- Normal: Cron diario a las 8:00 AM
+- Manual: --now (enviar ahora)
+- Testing: --dry-run (no enviar, solo imprimir)
 
-Uso:
-    python pulse_scheduler.py           # Inicia scheduler (loop infinito)
-    python pulse_scheduler.py --now     # Envía pulso inmediato (testing)
+Autor: Claude Code
+Fecha: 2026-01-31
 """
 
-import schedule
-import time
-import logging
-import sys
-import argparse
-from datetime import datetime
-from typing import Optional, Dict, List
-
-# Imports locales
-from narrative_engine import generar_pulso_diario
-from retry_utils import get_retry_session
-import requests
 import os
-from dotenv import load_dotenv
+import sys
+import time
+import argparse
+import requests
+import json
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
 
-load_dotenv()
-
-# ============================================================
-# CONFIGURACIÓN
-# ============================================================
-
-logger = logging.getLogger(__name__)
+# Configuración logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('logs/pulse_scheduler.log', mode='a')
-    ]
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
+logger = logging.getLogger(__name__)
 
-# URLs de endpoints locales (Railway o localhost)
-API_BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:5001')
-DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL_CHAPARRITA') or os.getenv('DISCORD_WEBHOOK_URL')
-SHOPIFY_API_KEY = os.getenv('SHOPIFY_API_KEY')  # Para auth
+# Environment variables
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:5001")
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
+PULSE_SCHEDULE_HOUR = int(os.getenv("PULSE_SCHEDULE_HOUR", "8"))  # 8:00 AM default
 
-# Hora de envío diario (formato 24h)
-PULSE_SEND_TIME = os.getenv('PULSE_SEND_TIME', '08:00')
 
-# Validación inicial
-if not DISCORD_WEBHOOK_URL:
-    logger.warning("⚠️ DISCORD_WEBHOOK_URL no configurado - pulsos NO se enviarán a Discord")
+class PulseScheduler:
+    """Scheduler para envío automático del Sticker Tiburón"""
 
-# ============================================================
-# HELPERS - FETCH DE DATOS
-# ============================================================
+    def __init__(
+        self,
+        api_base_url: str = API_BASE_URL,
+        discord_webhook: str = DISCORD_WEBHOOK_URL,
+        weather_api_key: str = OPENWEATHER_API_KEY
+    ):
+        self.api_base_url = api_base_url.rstrip('/')
+        self.discord_webhook = discord_webhook
+        self.weather_api_key = weather_api_key
 
-def fetch_cashflow_summary(shop: str = 'la-chaparrita') -> Optional[Dict]:
-    """
-    Obtiene summary de cashflow desde endpoint local.
+    def fetch_cashflow_summary(self) -> Dict:
+        """Obtiene resumen de cash flow desde API"""
+        try:
+            url = f"{self.api_base_url}/api/cashflow/summary"
+            response = requests.get(url, timeout=10)
 
-    Returns:
-        Dict con total_products, inventory_value, stockouts_count, etc.
-        None si falla
-    """
-    url = f"{API_BASE_URL}/api/cashflow/summary"
-    params = {'shop': shop}
-    headers = {}
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Error fetching summary: {response.status_code}")
+                return {}
 
-    if SHOPIFY_API_KEY:
-        headers['X-API-Key'] = SHOPIFY_API_KEY
+        except Exception as e:
+            logger.error(f"Exception fetching summary: {e}")
+            return {}
 
-    try:
-        session = get_retry_session(retries=3, backoff_factor=1.0)
-        response = session.get(url, params=params, headers=headers, timeout=10)
+    def fetch_liquidity_shield(self) -> Dict:
+        """Obtiene estado del Escudo de Liquidez"""
+        try:
+            url = f"{self.api_base_url}/api/cashflow/liquidity-shield"
+            response = requests.get(url, timeout=10)
 
-        if response.status_code == 200:
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Error fetching shield: {response.status_code}")
+                return {}
+
+        except Exception as e:
+            logger.error(f"Exception fetching shield: {e}")
+            return {}
+
+    def fetch_top_roi_products(self, limit: int = 3) -> List[Dict]:
+        """
+        Obtiene top productos con mejor ROI usando external signals.
+
+        Args:
+            limit: Número de productos a retornar
+
+        Returns:
+            Lista de productos con ROI simulado
+        """
+        try:
+            # 1. Obtener clasificación ABC
+            url = f"{self.api_base_url}/api/cashflow/abc-classification"
+            response = requests.get(url, timeout=10)
+
+            if response.status_code != 200:
+                logger.warning(f"Error fetching ABC: {response.status_code}")
+                return []
+
             data = response.json()
-            logger.info(f"✅ Cashflow summary obtenido: {data.get('total_products', 0)} productos")
-            return data
-        else:
-            logger.error(f"❌ Error obteniendo cashflow summary: {response.status_code} - {response.text}")
+            products = data.get('products', [])
+
+            if not products:
+                logger.info("No products available for ROI simulation")
+                return []
+
+            # 2. Simular ROI para productos categoría A y B (top performers)
+            top_products = []
+
+            for product in products:
+                if product.get('category') in ['A', 'B']:
+                    sku = product.get('sku')
+                    velocity = product.get('velocity_daily', 0)
+                    stock = product.get('stock', 0)
+
+                    # Calcular unidades a reordenar (conservador: 7 días de stock)
+                    units_to_order = max(int(velocity * 7), 10)
+
+                    # Simular ROI con external signals
+                    roi_data = self.simulate_roi_with_signals(sku, units_to_order)
+
+                    if roi_data and 'error' not in roi_data:
+                        roi_data['product'] = product
+                        top_products.append(roi_data)
+
+                    # Limitar requests para no sobrecargar
+                    if len(top_products) >= limit:
+                        break
+
+            # Ordenar por ROI esperado (descendente)
+            top_products.sort(key=lambda x: x.get('roi_expected', 0), reverse=True)
+
+            return top_products[:limit]
+
+        except Exception as e:
+            logger.error(f"Exception fetching top ROI: {e}")
+            return []
+
+    def simulate_roi_with_signals(self, sku: str, units: int) -> Optional[Dict]:
+        """
+        Simula ROI para un producto usando external signals.
+
+        Args:
+            sku: SKU del producto
+            units: Unidades a simular
+
+        Returns:
+            Datos de ROI con contexto predictivo
+        """
+        try:
+            url = f"{self.api_base_url}/api/cashflow/roi-simulator"
+            payload = {
+                "sku": sku,
+                "units": units,
+                "use_external_signals": True
+            }
+
+            response = requests.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Error simulating ROI for {sku}: {response.status_code}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Exception simulating ROI for {sku}: {e}")
             return None
 
-    except Exception as e:
-        logger.error(f"❌ Excepción al obtener cashflow summary: {e}")
-        return None
+    def fetch_external_signals(self, product_name: str = "Generic Product") -> Dict:
+        """Obtiene señales externas (clima + feriados) para contexto"""
+        try:
+            url = f"{self.api_base_url}/api/debug/external-signals"
+            params = {"product_name": product_name}
 
+            response = requests.get(url, params=params, timeout=10)
 
-def fetch_reorder_calculator(shop: str = 'la-chaparrita', top_n: int = 5) -> Optional[List[Dict]]:
-    """
-    Obtiene lista de productos para reordenar desde endpoint local.
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Error fetching signals: {response.status_code}")
+                return {}
 
-    Returns:
-        Lista de dicts con sku, name, units_needed, urgency, priority
-        None si falla
-    """
-    url = f"{API_BASE_URL}/api/reorder-calculator"
-    params = {
-        'shop': shop,
-        'top_n': top_n,
-        'min_priority': 'B'  # Solo B y A (urgentes)
-    }
-    headers = {}
+        except Exception as e:
+            logger.error(f"Exception fetching signals: {e}")
+            return {}
 
-    if SHOPIFY_API_KEY:
-        headers['X-API-Key'] = SHOPIFY_API_KEY
+    def generate_sticker(
+        self,
+        summary: Dict,
+        shield: Dict,
+        top_roi: List[Dict],
+        signals: Dict
+    ) -> Dict:
+        """
+        Genera Sticker Tiburón con contexto predictivo.
 
-    try:
-        session = get_retry_session(retries=3, backoff_factor=1.0)
-        response = session.get(url, params=params, headers=headers, timeout=10)
+        Args:
+            summary: Resumen cash flow
+            shield: Estado del Escudo
+            top_roi: Top productos ROI
+            signals: Señales externas (clima + feriados)
 
-        if response.status_code == 200:
-            data = response.json()
-            reorder_list = data.get('reorder_list', [])
-            logger.info(f"✅ Reorder calculator obtenido: {len(reorder_list)} productos")
-            return reorder_list
+        Returns:
+            Dict con mensaje Discord + embed
+        """
+
+        # Header con timestamp
+        now = datetime.now()
+        timestamp = now.strftime("%Y-%m-%d %H:%M")
+
+        # 🌡️ CONTEXTO EXTERNO
+        weather_context = ""
+        if signals.get('weather_data'):
+            weather = signals['weather_data']
+            temp = weather.get('temp_celsius', 0)
+            condition = weather.get('condition', 'Unknown')
+            weather_context = f"🌡️ **Columbus, Ohio:** {temp:.1f}°C, {condition}"
+
+        # 🎉 FERIADOS PRÓXIMOS
+        holidays_context = ""
+        if signals.get('upcoming_holidays'):
+            holidays = signals['upcoming_holidays']
+            if holidays:
+                next_holiday = holidays[0]
+                days = next_holiday.get('days_until', 0)
+                name = next_holiday.get('name', '')
+                holidays_context = f"\n🎉 **Próximo feriado:** {name} (en {days} días)"
+
+        # 💰 CASH FLOW SUMMARY
+        total_value = summary.get('total_inventory_value', 0)
+        stockout_cost = summary.get('stockout_opportunity_cost', 0)
+        dead_value = summary.get('dead_stock_value', 0)
+
+        # 🛡️ ESCUDO DE LIQUIDEZ
+        shield_status = "✅ ACTIVO" if shield.get('shield_active', False) else "🔴 INACTIVO"
+        ccc_days = shield.get('cash_conversion_cycle_days', 0)
+        freeze_active = shield.get('freeze_active', False)
+
+        freeze_emoji = "🧊 FREEZE ACTIVO" if freeze_active else "🔥 OPERATIVO"
+
+        # 📊 TOP ROI PRODUCTS (con contexto predictivo)
+        roi_section = ""
+        if top_roi:
+            roi_section = "\n\n📊 **TOP OPORTUNIDADES (ROI Predictivo):**\n"
+            for i, item in enumerate(top_roi, 1):
+                name = item.get('name', 'Unknown')
+                roi = item.get('roi_expected', 0)
+                units = item.get('units', 0)
+                external_reason = item.get('external_reason', '')
+
+                roi_line = f"{i}. **{name}**: ROI {roi:.1f}% ({units} unidades)"
+
+                # Agregar contexto predictivo si existe
+                if external_reason:
+                    roi_line += f"\n   🌡️ *{external_reason}*"
+
+                roi_section += f"{roi_line}\n"
         else:
-            logger.error(f"❌ Error obteniendo reorder calculator: {response.status_code} - {response.text}")
-            return None
+            roi_section = "\n\n📊 **TOP OPORTUNIDADES:** Sin datos disponibles"
 
-    except Exception as e:
-        logger.error(f"❌ Excepción al obtener reorder calculator: {e}")
-        return None
+        # 🚨 ALERTAS
+        alerts = []
+        if freeze_active:
+            alerts.append("🧊 Sistema en FREEZE - acciones bloqueadas")
+        if stockout_cost > 1000:
+            alerts.append(f"⚠️ Stockouts costando ${stockout_cost:,.0f}/mes")
+        if dead_value > 5000:
+            alerts.append(f"💀 ${dead_value:,.0f} en inventario muerto")
 
+        alerts_section = ""
+        if alerts:
+            alerts_section = "\n\n🚨 **ALERTAS:**\n" + "\n".join(f"- {alert}" for alert in alerts)
 
-def send_to_discord(mensaje: str, webhook_url: str = None) -> bool:
-    """
-    Envía mensaje narrativo a Discord usando webhook.
+        # MENSAJE COMPLETO
+        message = f"""🦈 **TIBURÓN PREDICTIVO - PULSO DIARIO**
+⏰ {timestamp}
 
-    Args:
-        mensaje: Texto completo del pulso narrativo
-        webhook_url: URL del webhook (opcional, usa DISCORD_WEBHOOK_URL por defecto)
+{weather_context}{holidays_context}
 
-    Returns:
-        True si envío exitoso, False si falla
-    """
-    url = webhook_url or DISCORD_WEBHOOK_URL
+💰 **Cash Flow:**
+- Inventario: ${total_value:,.0f}
+- Stockout Cost: ${stockout_cost:,.0f}/mes
+- Dead Stock: ${dead_value:,.0f}
 
-    if not url:
-        logger.warning("⚠️ Discord webhook no configurado - mensaje NO enviado")
-        return False
+🛡️ **Escudo de Liquidez:** {shield_status}
+- CCC: {ccc_days:.1f} días
+- Estado: {freeze_emoji}
+{roi_section}{alerts_section}
 
-    payload = {
-        "content": mensaje,
-        "username": "Centinela - La Chaparrita",
-        "avatar_url": "https://i.imgur.com/4M34hi2.png"  # Opcional: Ícono personalizado
-    }
+**Veredicto:** {'🔥 Dale gas con las oportunidades!' if top_roi and not freeze_active else '🛡️ Modo cautela - monitorear liquidez'}
+"""
 
-    try:
-        session = get_retry_session(retries=3, backoff_factor=1.0)
-        response = session.post(url, json=payload, timeout=10)
+        # Botones interactivos
+        components = []
+        if top_roi and not freeze_active:
+            # Botón para producto top
+            top_product = top_roi[0]
+            sku = top_product.get('sku')
+            units = top_product.get('units')
 
-        if response.status_code == 204:
-            logger.info("✅ Pulso enviado a Discord exitosamente!")
+            components = [
+                {
+                    "type": 1,
+                    "components": [
+                        {
+                            "type": 2,
+                            "style": 3,  # Green
+                            "label": f"Reordenar {units}x {sku}",
+                            "custom_id": f"approve_reorder_{sku}_{units}"
+                        },
+                        {
+                            "type": 2,
+                            "style": 1,  # Blue
+                            "label": "Ver Detalles",
+                            "custom_id": f"details_{sku}"
+                        }
+                    ]
+                }
+            ]
+
+        return {
+            "content": message,
+            "components": components
+        }
+
+    def send_to_discord(self, sticker: Dict, dry_run: bool = False) -> bool:
+        """
+        Envía Sticker a Discord.
+
+        Args:
+            sticker: Dict con mensaje y componentes
+            dry_run: Si True, solo imprime sin enviar
+
+        Returns:
+            True si se envió exitosamente
+        """
+        if dry_run:
+            logger.info("🧪 DRY RUN - No se envió a Discord")
+            logger.info(f"Mensaje:\n{sticker.get('content', '')}")
             return True
-        else:
-            logger.error(f"❌ Error enviando a Discord: {response.status_code} - {response.text}")
+
+        if not self.discord_webhook:
+            logger.error("DISCORD_WEBHOOK_URL no configurado")
             return False
 
-    except Exception as e:
-        logger.error(f"❌ Excepción al enviar a Discord: {e}")
-        return False
+        try:
+            response = requests.post(
+                self.discord_webhook,
+                json=sticker,
+                headers={"Content-Type": "application/json"},
+                timeout=10
+            )
 
+            if response.status_code in [200, 204]:
+                logger.info("✅ Sticker enviado a Discord exitosamente")
+                return True
+            else:
+                logger.error(f"Error enviando a Discord: {response.status_code}")
+                logger.error(f"Response: {response.text}")
+                return False
 
-# ============================================================
-# PULSO PRINCIPAL
-# ============================================================
+        except Exception as e:
+            logger.error(f"Exception enviando a Discord: {e}")
+            return False
 
-def enviar_pulso_diario():
-    """
-    Función principal del scheduler: obtiene datos, genera mensaje, envía a Discord.
+    def run_pulse(self, dry_run: bool = False) -> bool:
+        """
+        Ejecuta el pulso completo.
 
-    Flow:
-        1. Fetch cashflow summary
-        2. Fetch reorder calculator
-        3. Generar mensaje narrativo
-        4. Enviar a Discord con retry
-        5. Log resultado
-    """
-    logger.info("=" * 60)
-    logger.info("🤖 INICIANDO PULSO DIARIO DE LA CHAPARRITA")
-    logger.info("=" * 60)
+        Args:
+            dry_run: Si True, no envía a Discord
 
-    start_time = time.time()
+        Returns:
+            True si se ejecutó exitosamente
+        """
+        logger.info("🦈 Iniciando Pulso Tiburón Predictivo...")
 
-    # 1. Fetch datos
-    logger.info("📡 Obteniendo datos de cashflow...")
-    summary = fetch_cashflow_summary()
-
-    if not summary:
-        logger.error("❌ FALLO: No se pudo obtener cashflow summary - ABORTANDO pulso")
-        return
-
-    logger.info("📡 Obteniendo productos para reordenar...")
-    reorder_list = fetch_reorder_calculator(top_n=3)
-
-    if reorder_list is None:
-        logger.warning("⚠️ No se pudo obtener reorder list - pulso enviará solo summary")
-        reorder_list = []
-
-    # 2. Generar mensaje narrativo
-    logger.info("🗣️ Generando mensaje narrativo con personalidad...")
-    try:
-        mensaje_pulso = generar_pulso_diario(
-            summary=summary,
-            top_reorder=reorder_list
+        # 1. Fetch data
+        logger.info("Obteniendo datos...")
+        summary = self.fetch_cashflow_summary()
+        shield = self.fetch_liquidity_shield()
+        top_roi = self.fetch_top_roi_products(limit=3)
+        signals = self.fetch_external_signals(
+            product_name=top_roi[0].get('name', 'Generic Product') if top_roi else 'Generic Product'
         )
 
-        logger.info(f"✅ Mensaje narrativo generado ({len(mensaje_pulso)} caracteres)")
+        # 2. Generate Sticker
+        logger.info("Generando Sticker...")
+        sticker = self.generate_sticker(summary, shield, top_roi, signals)
 
-        # Log preview (primeras 200 caracteres)
-        preview = mensaje_pulso[:200].replace('\n', ' ')
-        logger.info(f"📄 Preview: {preview}...")
+        # 3. Send
+        logger.info("Enviando a Discord...")
+        success = self.send_to_discord(sticker, dry_run=dry_run)
 
-    except Exception as e:
-        logger.error(f"❌ FALLO: Error generando mensaje narrativo: {e}")
-        return
+        if success:
+            logger.info("✅ Pulso completado exitosamente")
+        else:
+            logger.error("❌ Pulso falló")
 
-    # 3. Enviar a Discord
-    logger.info("📤 Enviando pulso a Discord...")
-    success = send_to_discord(mensaje_pulso)
+        return success
 
-    # 4. Log resultado final
-    elapsed = time.time() - start_time
+    def schedule_loop(self):
+        """Loop principal - envía pulso diario a hora configurada"""
+        logger.info(f"🕐 Scheduler iniciado - Pulso diario a las {PULSE_SCHEDULE_HOUR}:00")
 
-    if success:
-        logger.info("=" * 60)
-        logger.info(f"✅ PULSO ENVIADO EXITOSAMENTE en {elapsed:.2f}s")
-        logger.info("=" * 60)
-    else:
-        logger.error("=" * 60)
-        logger.error(f"❌ PULSO FALLÓ después de {elapsed:.2f}s")
-        logger.error("=" * 60)
+        while True:
+            now = datetime.now()
 
+            # Verificar si es la hora del pulso
+            if now.hour == PULSE_SCHEDULE_HOUR and now.minute < 5:
+                logger.info(f"⏰ Hora del pulso: {now.strftime('%H:%M')}")
+                self.run_pulse(dry_run=False)
 
-# ============================================================
-# SCHEDULER
-# ============================================================
+                # Esperar hasta la próxima hora para evitar duplicados
+                time.sleep(60 * 60)  # 1 hora
+            else:
+                # Calcular tiempo hasta próximo pulso
+                next_pulse = now.replace(hour=PULSE_SCHEDULE_HOUR, minute=0, second=0, microsecond=0)
+                if now.hour >= PULSE_SCHEDULE_HOUR:
+                    # Pulso es mañana
+                    next_pulse += timedelta(days=1)
 
-def run_scheduler():
-    """
-    Inicia scheduler que ejecuta enviar_pulso_diario() todos los días a PULSE_SEND_TIME.
-    Loop infinito - debe correr como proceso persistente.
-    """
-    logger.info("🕒 PULSE SCHEDULER INICIADO")
-    logger.info(f"⏰ Pulso programado para: {PULSE_SEND_TIME} (hora local)")
-    logger.info(f"🌐 API Base URL: {API_BASE_URL}")
-    logger.info(f"💬 Discord webhook: {'✅ Configurado' if DISCORD_WEBHOOK_URL else '❌ NO configurado'}")
-    logger.info("=" * 60)
+                wait_seconds = (next_pulse - now).total_seconds()
+                logger.info(f"⏳ Próximo pulso en {wait_seconds/3600:.1f} horas ({next_pulse.strftime('%Y-%m-%d %H:%M')})")
 
-    # Programar tarea diaria
-    schedule.every().day.at(PULSE_SEND_TIME).do(enviar_pulso_diario)
-
-    logger.info(f"✅ Próximo pulso: {schedule.next_run()}")
-
-    # Loop infinito
-    while True:
-        schedule.run_pending()
-        time.sleep(60)  # Chequea cada 60 segundos
+                # Esperar, pero revisar cada 10 minutos por si acaso
+                time.sleep(min(wait_seconds, 600))
 
 
-# ============================================================
-# MAIN
-# ============================================================
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Pulse Scheduler - El Corazón del Centinela")
-    parser.add_argument(
-        '--now',
-        action='store_true',
-        help='Envía pulso inmediatamente (testing) en vez de iniciar scheduler'
-    )
-    parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Genera mensaje pero NO lo envía a Discord (testing)'
-    )
+def main():
+    parser = argparse.ArgumentParser(description='Pulse Scheduler - Tiburón Predictivo')
+    parser.add_argument('--now', action='store_true', help='Enviar pulso ahora (ignorar schedule)')
+    parser.add_argument('--dry-run', action='store_true', help='Testing mode - no enviar a Discord')
 
     args = parser.parse_args()
 
+    scheduler = PulseScheduler()
+
     if args.now:
-        logger.info("🚀 Modo --now: Enviando pulso inmediatamente...")
-
-        if args.dry_run:
-            logger.info("🧪 Modo --dry-run: Mensaje NO será enviado a Discord")
-
-            # Fetch y generar, pero no enviar
-            summary = fetch_cashflow_summary()
-            if summary:
-                reorder_list = fetch_reorder_calculator(top_n=3) or []
-                mensaje = generar_pulso_diario(summary, reorder_list)
-
-                print("\n" + "=" * 60)
-                print("📄 PREVIEW DEL MENSAJE:")
-                print("=" * 60)
-                print(mensaje)
-                print("=" * 60)
-                logger.info("✅ Dry-run completado")
-            else:
-                logger.error("❌ No se pudo obtener datos")
-        else:
-            enviar_pulso_diario()
+        # Modo manual - enviar ahora
+        logger.info("🚀 Modo manual - enviando pulso inmediatamente...")
+        success = scheduler.run_pulse(dry_run=args.dry_run)
+        sys.exit(0 if success else 1)
     else:
-        # Modo normal: scheduler
-        run_scheduler()
+        # Modo scheduler - loop infinito
+        logger.info("🕐 Modo scheduler - iniciando loop...")
+        scheduler.schedule_loop()
+
+
+if __name__ == "__main__":
+    main()
