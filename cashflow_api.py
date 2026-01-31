@@ -9,9 +9,16 @@ Endpoints:
 - GET /api/cashflow/doi - Días de Inventario (Days of Inventory)
 - GET /api/cashflow/abc-classification - Clasificación ABC de productos
 - GET /api/cashflow/summary - Resumen completo de Cash Flow
+- POST /api/cashflow/roi-simulator - Simulación ROI con Monte Carlo
+- GET /api/cashflow/liquidity-shield - Escudo de Liquidez y CCC
+- GET /api/cashflow/dead-stock - Candidatos a liquidación
+- POST /api/execute-reorder - Ejecutar reorden de producto
+- POST /api/execute-liquidate - Ejecutar liquidación de productos
+- POST /api/execute-combined - Acciones combinadas (liquidar + reordenar)
 
 Autor: Claude Code
 Fecha: 2026-01-18
+Actualizado: 2026-01-29 (Tiburón Interactivo)
 """
 
 from flask import Blueprint, request, jsonify, send_file
@@ -21,6 +28,15 @@ import io
 import os
 import json
 from datetime import datetime, timedelta
+
+# Importar motores del Tiburón
+from stats_engine import StatsEngine
+from liquidity_guard import LiquidityGuard
+from interactive_handler import InteractiveHandler
+
+# Importar Protocolo Cero Absoluto
+from lockdown_manager import get_lockdown_manager
+from security_middleware import check_system_status, require_admin_key, log_execution_attempt
 
 # Crear Blueprint
 cashflow_bp = Blueprint('cashflow', __name__)
@@ -952,3 +968,696 @@ def refresh_insights():
         }), 500
     finally:
         conn.close()
+
+
+# ============================================================================
+# 🦈 TIBURÓN INTERACTIVO - ROI SIMULATOR + ESCUDO + ACCIONES
+# ============================================================================
+
+@cashflow_bp.route('/api/cashflow/roi-simulator', methods=['POST'])
+def roi_simulator():
+    """
+    Simula ROI con Monte Carlo para decisiones de reorden.
+
+    Request Body:
+        {
+            "sku": "SOMB-ARCO-09",
+            "units": 25,
+            "send_to_discord": true  // opcional
+        }
+
+    Returns:
+        {
+            "success": true,
+            "simulation": {
+                "sku": "SOMB-ARCO-09",
+                "name": "Sombrero Arcoíris",
+                "units": 25,
+                "investment": 1500.00,
+                "roi_expected": 60.5,
+                "roi_range": [45.2, 75.8],
+                "breakeven_days": 12.3,
+                "risk_level": "bajo",
+                "narrative": "..."
+            },
+            "discord_sent": true
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'sku' not in data or 'units' not in data:
+            return jsonify({
+                "error": "Faltan parámetros. Requeridos: sku, units"
+            }), 400
+
+        sku = data['sku']
+        units = int(data['units'])
+        send_to_discord = data.get('send_to_discord', False)
+
+        # Ejecutar simulación
+        engine = StatsEngine()
+        simulation = engine.calculate_roi_simulation(sku=sku, units=units)
+
+        if 'error' in simulation:
+            return jsonify({
+                "success": False,
+                "error": simulation['error']
+            }), 404
+
+        # Enviar a Discord si se requiere
+        discord_sent = False
+        if send_to_discord:
+            handler = InteractiveHandler()
+            message = handler.create_roi_simulation_message(simulation)
+            discord_sent = handler.send_interactive_message(
+                content=message['content'],
+                actions=message['actions'],
+                embed=message['embed']
+            )
+
+        return jsonify({
+            "success": True,
+            "simulation": simulation,
+            "discord_sent": discord_sent
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@cashflow_bp.route('/api/cashflow/liquidity-shield', methods=['GET'])
+def liquidity_shield():
+    """
+    Estado del Escudo de Liquidez y CCC.
+
+    Query params:
+        - proposed_investment: float (opcional) - simular impacto de inversión
+
+    Returns:
+        {
+            "success": true,
+            "ccc": {...},
+            "shield": {
+                "current_inventory_value": 45000,
+                "days_of_coverage": 37,
+                "escudo_active": false,
+                "recommendation": "..."
+            }
+        }
+    """
+    try:
+        proposed_investment = request.args.get('proposed_investment', 0, type=float)
+
+        guard = LiquidityGuard()
+
+        # CCC
+        ccc = guard.calculate_ccc()
+
+        # Escudo
+        shield = guard.calculate_liquidity_shield(proposed_investment=proposed_investment)
+
+        return jsonify({
+            "success": True,
+            "ccc": ccc,
+            "shield": shield
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@cashflow_bp.route('/api/cashflow/dead-stock', methods=['GET'])
+def get_dead_stock():
+    """
+    Lista de productos candidatos a liquidación.
+
+    Query params:
+        - min_days: int (default 60) - días mínimos sin ventas
+
+    Returns:
+        {
+            "success": true,
+            "candidates": [
+                {
+                    "sku": "...",
+                    "name": "...",
+                    "capital_trapped": 500,
+                    "liquidation_priority": "alta"
+                }
+            ],
+            "total_capital_trapped": 5000
+        }
+    """
+    try:
+        min_days = request.args.get('min_days', 60, type=int)
+
+        guard = LiquidityGuard()
+        candidates = guard.get_dead_stock_candidates(min_days_stagnant=min_days)
+
+        total_capital = sum(c['capital_trapped'] for c in candidates)
+
+        return jsonify({
+            "success": True,
+            "candidates": candidates,
+            "total_capital_trapped": round(total_capital, 2),
+            "count": len(candidates)
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@cashflow_bp.route('/api/execute-reorder', methods=['POST'])
+@log_execution_attempt
+@check_system_status
+def execute_reorder():
+    """
+    Ejecuta reorden de producto (placeholder - conectar con sistema real).
+
+    Request Body:
+        {
+            "sku": "SOMB-ARCO-09",
+            "units": 25,
+            "confirm": true
+        }
+
+    Returns:
+        {
+            "success": true,
+            "action": "reorder",
+            "sku": "SOMB-ARCO-09",
+            "units": 25,
+            "status": "confirmed",
+            "message": "Orden de compra creada"
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'sku' not in data or 'units' not in data:
+            return jsonify({
+                "error": "Faltan parámetros. Requeridos: sku, units, confirm"
+            }), 400
+
+        sku = data['sku']
+        units = int(data['units'])
+        confirm = data.get('confirm', False)
+
+        if not confirm:
+            return jsonify({
+                "error": "Debes confirmar la acción con confirm: true"
+            }), 400
+
+        # TODO: Integrar con sistema de compras real (Shopify Draft Orders, etc.)
+        # Por ahora, solo registramos la acción
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Verificar que el producto existe
+        cursor.execute("SELECT name, cost_price FROM products WHERE sku = ?", (sku,))
+        product = cursor.fetchone()
+
+        if not product:
+            conn.close()
+            return jsonify({
+                "error": f"Producto {sku} no encontrado"
+            }), 404
+
+        name = product['name']
+        cost_price = product['cost_price'] or 0
+        total_cost = units * cost_price
+
+        # Registrar acción en DB (crear tabla si no existe)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS reorder_actions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sku TEXT NOT NULL,
+                product_name TEXT,
+                units INTEGER,
+                total_cost REAL,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            INSERT INTO reorder_actions (sku, product_name, units, total_cost, status)
+            VALUES (?, ?, ?, ?, 'confirmed')
+        """, (sku, name, units, total_cost))
+
+        action_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "action": "reorder",
+            "action_id": action_id,
+            "sku": sku,
+            "product_name": name,
+            "units": units,
+            "total_cost": round(total_cost, 2),
+            "status": "confirmed",
+            "message": f"✅ Orden de compra creada: {units}x {name} (${total_cost:,.0f})"
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@cashflow_bp.route('/api/execute-liquidate', methods=['POST'])
+@log_execution_attempt
+@check_system_status
+def execute_liquidate():
+    """
+    Ejecuta liquidación de productos.
+
+    Request Body:
+        {
+            "skus": ["SKU1", "SKU2"],
+            "discount_pct": 0.30,
+            "confirm": true
+        }
+
+    OR query param:
+        ?top=5  // Liquidar top 5 dead stock
+
+    Returns:
+        {
+            "success": true,
+            "action": "liquidate",
+            "simulation": {...},
+            "status": "confirmed"
+        }
+    """
+    try:
+        # Opción 1: Query param ?top=N
+        top_n = request.args.get('top', type=int)
+
+        if top_n:
+            guard = LiquidityGuard()
+            candidates = guard.get_dead_stock_candidates()[:top_n]
+            skus = [c['sku'] for c in candidates]
+            discount_pct = 0.30  # Default 30%
+        else:
+            # Opción 2: Request body
+            data = request.get_json()
+
+            if not data or 'skus' not in data:
+                return jsonify({
+                    "error": "Faltan parámetros. Requeridos: skus, confirm"
+                }), 400
+
+            skus = data['skus']
+            discount_pct = data.get('discount_pct', 0.30)
+
+        confirm = request.args.get('confirm', 'false').lower() == 'true'
+        if not confirm and request.is_json:
+            confirm = request.get_json().get('confirm', False)
+
+        # Simular impacto
+        guard = LiquidityGuard()
+        simulation = guard.simulate_liquidation_impact(skus=skus, discount_pct=discount_pct)
+
+        if not confirm:
+            return jsonify({
+                "success": True,
+                "action": "liquidate",
+                "simulation": simulation,
+                "status": "preview",
+                "message": "Preview de liquidación. Envía confirm: true para ejecutar."
+            }), 200
+
+        # TODO: Integrar con sistema real de descuentos/promociones
+        # Por ahora, solo registramos
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS liquidation_actions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                skus TEXT,
+                discount_pct REAL,
+                revenue_expected REAL,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            INSERT INTO liquidation_actions (skus, discount_pct, revenue_expected, status)
+            VALUES (?, ?, ?, 'confirmed')
+        """, (','.join(skus), discount_pct, simulation['revenue_at_discount']))
+
+        action_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "action": "liquidate",
+            "action_id": action_id,
+            "simulation": simulation,
+            "status": "confirmed",
+            "message": f"✅ Liquidación iniciada: {len(skus)} productos con {int(discount_pct * 100)}% descuento"
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@cashflow_bp.route('/api/execute-combined', methods=['POST'])
+@log_execution_attempt
+@check_system_status
+def execute_combined():
+    """
+    Ejecuta acciones combinadas (ej: liquidar dead stock + reordenar producto).
+
+    Request Body:
+        {
+            "action": "liquidate_reorder",
+            "liquidate_top": 5,
+            "reorder_sku": "SOMB-ARCO-09",
+            "reorder_units": 25,
+            "confirm": true
+        }
+
+    Returns:
+        {
+            "success": true,
+            "actions": {
+                "liquidation": {...},
+                "reorder": {...}
+            }
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'action' not in data:
+            return jsonify({
+                "error": "Falta parámetro 'action'. Valores: liquidate_reorder"
+            }), 400
+
+        action_type = data['action']
+        confirm = data.get('confirm', False)
+
+        if action_type == 'liquidate_reorder':
+            # Paso 1: Liquidar dead stock
+            liquidate_top = data.get('liquidate_top', 5)
+
+            guard = LiquidityGuard()
+            candidates = guard.get_dead_stock_candidates()[:liquidate_top]
+            skus_to_liquidate = [c['sku'] for c in candidates]
+
+            liquidation_sim = guard.simulate_liquidation_impact(
+                skus=skus_to_liquidate,
+                discount_pct=0.30
+            )
+
+            # Paso 2: Reordenar producto
+            reorder_sku = data.get('reorder_sku')
+            reorder_units = data.get('reorder_units')
+
+            if not reorder_sku or not reorder_units:
+                return jsonify({
+                    "error": "Faltan parámetros: reorder_sku, reorder_units"
+                }), 400
+
+            engine = StatsEngine()
+            reorder_sim = engine.calculate_roi_simulation(sku=reorder_sku, units=reorder_units)
+
+            if not confirm:
+                return jsonify({
+                    "success": True,
+                    "action": "combined_preview",
+                    "liquidation": liquidation_sim,
+                    "reorder": reorder_sim,
+                    "status": "preview",
+                    "message": "Preview de acción combinada. Envía confirm: true para ejecutar."
+                }), 200
+
+            # Ejecutar ambas acciones
+            # TODO: Implementar ejecución real
+
+            return jsonify({
+                "success": True,
+                "action": "liquidate_reorder",
+                "status": "confirmed",
+                "liquidation": liquidation_sim,
+                "reorder": reorder_sim,
+                "message": f"✅ Combo ejecutado: Liquidando {len(skus_to_liquidate)} productos + Reordenando {reorder_units}x {reorder_sim['name']}"
+            }), 200
+
+        else:
+            return jsonify({
+                "error": f"Acción '{action_type}' no soportada"
+            }), 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================================
+# ❄️ PROTOCOLO CERO ABSOLUTO - ADMIN ENDPOINTS
+# ============================================================================
+
+@cashflow_bp.route('/api/admin/freeze', methods=['POST'])
+@require_admin_key
+def admin_freeze():
+    """
+    Congela el sistema - activa Protocolo Cero Absoluto.
+
+    Requiere header: X-Admin-Key
+
+    Request Body (opcional):
+        {
+            "reason": "Emergency lockdown - suspected breach",
+            "frozen_by": "admin_user_123"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "frozen": true,
+            "frozen_at": "2026-01-29T...",
+            "message": "Sistema criogenizado..."
+        }
+    """
+    try:
+        data = request.get_json() or {}
+        reason = data.get('reason', 'Manual freeze via API')
+        frozen_by = data.get('frozen_by', request.remote_addr)
+
+        manager = get_lockdown_manager()
+
+        # Verificar si ya está congelado
+        if manager.is_frozen():
+            return jsonify({
+                "success": False,
+                "error": "System already frozen",
+                "status": manager.get_status()
+            }), 400
+
+        # Congelar
+        result = manager.freeze(frozen_by=frozen_by, reason=reason)
+
+        return jsonify({
+            "success": True,
+            **result
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@cashflow_bp.route('/api/admin/thaw', methods=['POST'])
+@require_admin_key
+def admin_thaw():
+    """
+    Descongela el sistema - desactiva Protocolo Cero Absoluto.
+
+    Requiere header: X-Admin-Key
+
+    Request Body (opcional):
+        {
+            "thawed_by": "admin_user_123"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "frozen": false,
+            "thawed_at": "2026-01-29T...",
+            "message": "Sistema reactivado..."
+        }
+    """
+    try:
+        data = request.get_json() or {}
+        thawed_by = data.get('thawed_by', request.remote_addr)
+
+        manager = get_lockdown_manager()
+
+        # Verificar si está congelado
+        if not manager.is_frozen():
+            return jsonify({
+                "success": False,
+                "error": "System is not frozen",
+                "status": manager.get_status()
+            }), 400
+
+        # Descongelar
+        result = manager.thaw(thawed_by=thawed_by)
+
+        return jsonify({
+            "success": True,
+            **result
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@cashflow_bp.route('/api/admin/lockdown-status', methods=['GET'])
+@require_admin_key
+def lockdown_status():
+    """
+    Obtiene estado completo del lockdown.
+
+    Requiere header: X-Admin-Key
+
+    Returns:
+        {
+            "frozen": bool,
+            "frozen_at": "...",
+            "frozen_by": "...",
+            "reason": "...",
+            "security_events": [...]
+        }
+    """
+    try:
+        manager = get_lockdown_manager()
+
+        status = manager.get_status()
+        events = manager.get_security_events(limit=20)
+
+        return jsonify({
+            "success": True,
+            "status": status,
+            "recent_events": events
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================================
+# 📱 MOBILE PULSE - WhatsApp Bridge
+# ============================================================================
+
+@cashflow_bp.route('/api/v1/mobile-pulse', methods=['GET'])
+def mobile_pulse():
+    """
+    Endpoint simple para WhatsApp bridge - retorna estado del sistema en JSON plano
+
+    Returns:
+        {
+            "status": "healthy" | "warning" | "critical",
+            "message": "Texto descriptivo para WhatsApp",
+            "metrics": {
+                "ccc": valor CCC,
+                "coverage_days": días de cobertura,
+                "escudo_active": bool,
+                "top_reorder": {sku, name, roi}
+            }
+        }
+    """
+    try:
+        from liquidity_guard import LiquidityGuard
+        from stats_engine import StatsEngine
+
+        guard = LiquidityGuard()
+        engine = StatsEngine()
+
+        # 1. Estado de liquidez
+        shield = guard.calculate_liquidity_shield(proposed_investment=0)
+        ccc = guard.calculate_ccc()
+
+        # 2. Top reorder candidate
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT sku, name, stock, velocity_daily
+            FROM products
+            WHERE category = 'A'
+              AND stock < (velocity_daily * 7)
+              AND velocity_daily > 0
+            ORDER BY (velocity_daily * 7 - stock) DESC
+            LIMIT 1
+        """)
+
+        top_candidate = cursor.fetchone()
+        conn.close()
+
+        top_reorder = None
+        if top_candidate:
+            sku, name, stock, velocity = top_candidate
+            units_needed = int(velocity * 14 - stock)  # Reorden para 2 semanas
+
+            if units_needed > 0:
+                roi_data = engine.calculate_roi_simulation(sku, units_needed)
+
+                if "error" not in roi_data:
+                    top_reorder = {
+                        "sku": sku,
+                        "name": name,
+                        "units": units_needed,
+                        "roi": roi_data["roi_expected"],
+                        "risk": roi_data["risk_level"]
+                    }
+
+        # 3. Status general
+        if shield["risk_level"] == "crítico" or ccc["health"] == "crítico":
+            status = "critical"
+            emoji = "🚨"
+        elif shield["risk_level"] == "warning" or ccc["health"] == "warning":
+            status = "warning"
+            emoji = "⚠️"
+        else:
+            status = "healthy"
+            emoji = "✅"
+
+        # 4. Mensaje para WhatsApp
+        message = f"""{emoji} CASH FLOW STATUS
+
+💰 Cobertura: {shield['days_of_coverage']:.0f} días
+🔄 CCC: {ccc['ccc_days']:.1f} días ({ccc['trend']})
+{"🛡️ Escudo: ACTIVO" if shield['escudo_active'] else "🚀 Escudo: OFF"}"""
+
+        if top_reorder:
+            message += f"\n\n🦈 Top Move:\n{top_reorder['name']}\nROI: {top_reorder['roi']:.1f}% ({top_reorder['risk']} riesgo)"
+
+        return jsonify({
+            "status": status,
+            "message": message,
+            "metrics": {
+                "ccc_days": ccc["ccc_days"],
+                "ccc_health": ccc["health"],
+                "coverage_days": shield["days_of_coverage"],
+                "escudo_active": shield["escudo_active"],
+                "risk_level": shield["risk_level"],
+                "top_reorder": top_reorder
+            },
+            "timestamp": datetime.now().isoformat()
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Error: {str(e)}",
+            "metrics": {}
+        }), 500

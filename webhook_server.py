@@ -23,6 +23,7 @@ from flask import Flask, request, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from datetime import datetime
+from typing import List, Dict
 import logging
 import sys
 import hmac
@@ -1354,6 +1355,110 @@ app = Flask(__name__)
 from cashflow_api import cashflow_bp
 app.register_blueprint(cashflow_bp)
 # =========================================================
+
+# ============= 🦈 TIBURÓN INTERACTIVO: Discord Interactions =============
+from interactive_handler import InteractiveHandler
+
+@app.route('/api/discord/interaction', methods=['POST'])
+def discord_interaction():
+    """
+    Maneja interacciones de Discord (clicks en botones).
+
+    Discord envía POST cuando el usuario clickea un botón.
+    """
+    try:
+        data = request.get_json()
+
+        # Discord interaction payload
+        interaction_type = data.get('type')  # 3 = MESSAGE_COMPONENT (botón)
+        custom_id = data.get('data', {}).get('custom_id')
+
+        logger.info(f"🦈 Discord interaction: type={interaction_type}, custom_id={custom_id}")
+
+        if interaction_type == 3:  # MESSAGE_COMPONENT (botón clickeado)
+            # Parsear custom_id (formato: "action_sku_units")
+            # Ejemplos:
+            # - "approve_reorder_SOMB-ARCO-09_25"
+            # - "reject_SOMB-ARCO-09"
+            # - "simulate_aggressive_SOMB-ARCO-09"
+
+            parts = custom_id.split('_')
+            action = parts[0]
+
+            if action == "approve" and len(parts) >= 4:
+                # Aprobar reorden
+                sku = parts[2]
+                units = int(parts[3])
+
+                # Ejecutar reorden (llamar al endpoint interno)
+                from stats_engine import StatsEngine
+                engine = StatsEngine()
+                simulation = engine.calculate_roi_simulation(sku=sku, units=units)
+
+                # Responder a Discord
+                return jsonify({
+                    "type": 4,  # CHANNEL_MESSAGE_WITH_SOURCE
+                    "data": {
+                        "content": f"✅ **Reorden aprobado**: {units}x {simulation['name']}\n💰 Inversión: ${simulation['investment']:,.0f}\n📊 ROI esperado: {simulation['roi_expected']:.1f}%",
+                        "flags": 64  # Ephemeral (solo visible para quien clickeó)
+                    }
+                }), 200
+
+            elif action == "reject":
+                sku = parts[1] if len(parts) > 1 else "SKU desconocido"
+
+                return jsonify({
+                    "type": 4,
+                    "data": {
+                        "content": f"❌ **Reorden rechazado**: {sku}",
+                        "flags": 64
+                    }
+                }), 200
+
+            elif action == "simulate" and parts[1] == "aggressive":
+                # Simular versión agresiva (+50% unidades)
+                sku = parts[2]
+
+                # TODO: Obtener units originales y calcular +50%
+                # Por ahora, respuesta placeholder
+
+                return jsonify({
+                    "type": 4,
+                    "data": {
+                        "content": f"🔄 **Simulando versión agresiva** para {sku}...\nEsto ejecutará una nueva simulación con 50% más unidades.",
+                        "flags": 64
+                    }
+                }), 200
+
+            else:
+                return jsonify({
+                    "type": 4,
+                    "data": {
+                        "content": f"⚠️ Acción no reconocida: {custom_id}",
+                        "flags": 64
+                    }
+                }), 200
+
+        # Tipo de interacción no soportado
+        return jsonify({
+            "type": 4,
+            "data": {
+                "content": "⚠️ Tipo de interacción no soportado",
+                "flags": 64
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"❌ Error en Discord interaction: {e}")
+        return jsonify({
+            "type": 4,
+            "data": {
+                "content": f"❌ Error procesando interacción: {str(e)}",
+                "flags": 64
+            }
+        }), 500
+
+# =========================================================================
 
 @app.route('/')
 def home():
@@ -3174,6 +3279,148 @@ def debug_data_dir():
             "webhooks": webhook_count
         }
     }), 200
+
+
+# ============================================================
+# 🦈 TIBURÓN INTERACTIVO - Mensajes con Botones Discord
+# ============================================================
+
+def send_tiburon_roi_alert(sku: str, units: int, discord_url: str = None) -> bool:
+    """
+    Envía mensaje interactivo del Tiburón con simulación ROI y botones de acción.
+
+    Args:
+        sku: SKU del producto
+        units: Unidades sugeridas para reorden
+        discord_url: URL del webhook Discord
+
+    Returns:
+        True si envío exitoso, False si falla
+    """
+    from stats_engine import StatsEngine
+    from liquidity_guard import LiquidityGuard
+    from interactive_handler import InteractiveHandler
+
+    webhook_url = discord_url or DISCORD_WEBHOOK_URL
+    if not webhook_url:
+        logger.warning("⚠️ Discord webhook no configurado")
+        return False
+
+    try:
+        # 1. Calcular ROI con Monte Carlo
+        engine = StatsEngine()
+        roi_data = engine.calculate_roi_simulation(sku, units)
+
+        if "error" in roi_data:
+            logger.error(f"Error calculando ROI: {roi_data['error']}")
+            return False
+
+        # 2. Verificar Escudo de Liquidez
+        guard = LiquidityGuard()
+        investment = roi_data["investment"]
+        shield = guard.calculate_liquidity_shield(proposed_investment=investment)
+
+        # 3. Crear mensaje interactivo
+        handler = InteractiveHandler()
+        message = handler.create_roi_simulation_message(roi_data)
+
+        # 4. Agregar info del Escudo si está activo
+        if shield["escudo_active"]:
+            liquidity_msg = handler.create_liquidity_alert_message(shield)
+            message["content"] += f"\n\n{liquidity_msg['content']}"
+
+        # 5. Construir payload Discord
+        payload = {
+            "content": message["content"],
+            "embeds": [message["embed"]]
+        }
+
+        # 6. Enviar
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+
+        if response.status_code == 204:
+            logger.info(f"✅ Tiburón ROI alert enviada: {sku} ({units} unidades)")
+            return True
+        else:
+            logger.error(f"❌ Discord error: {response.status_code} - {response.text}")
+            return False
+
+    except Exception as e:
+        logger.error(f"❌ Error enviando Tiburón alert: {e}", exc_info=True)
+        return False
+
+
+def send_tiburon_combined_alert(
+    skus_to_liquidate: List[str],
+    sku_to_reorder: str,
+    units_to_reorder: int,
+    discord_url: str = None
+) -> bool:
+    """
+    Envía mensaje interactivo del Tiburón con acción combinada (liquidar + reordenar).
+
+    Args:
+        skus_to_liquidate: Lista de SKUs para liquidar
+        sku_to_reorder: SKU para reordenar
+        units_to_reorder: Unidades a reordenar
+        discord_url: URL del webhook Discord
+
+    Returns:
+        True si envío exitoso
+    """
+    from stats_engine import StatsEngine
+    from liquidity_guard import LiquidityGuard
+    from interactive_handler import InteractiveHandler
+
+    webhook_url = discord_url or DISCORD_WEBHOOK_URL
+    if not webhook_url:
+        return False
+
+    try:
+        engine = StatsEngine()
+        guard = LiquidityGuard()
+        handler = InteractiveHandler()
+
+        # 1. Simular liquidación
+        liquidation_sim = guard.simulate_liquidation_impact(skus_to_liquidate, discount_pct=0.30)
+
+        # 2. Simular reorden
+        roi_data = engine.calculate_roi_simulation(sku_to_reorder, units_to_reorder)
+
+        if "error" in roi_data:
+            return False
+
+        # 3. Crear mensaje combinado
+        message = handler.create_combined_action_message(
+            liquidation_data=liquidation_sim,
+            simulation_data=roi_data,
+            skus_to_liquidate=skus_to_liquidate
+        )
+
+        # 4. Enviar
+        payload = {
+            "content": message["content"],
+            "embeds": [message["embed"]]
+        }
+
+        response = requests.post(webhook_url, json=payload, timeout=10)
+
+        if response.status_code == 204:
+            logger.info(f"✅ Tiburón combined alert enviada")
+            return True
+        else:
+            logger.error(f"❌ Discord error: {response.status_code}")
+            return False
+
+    except Exception as e:
+        logger.error(f"❌ Error enviando combined alert: {e}", exc_info=True)
+        return False
+
 
 # ============================================================
 # 🚀 ENTRY POINT

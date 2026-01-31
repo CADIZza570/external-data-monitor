@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🚨 EMERGENCY DASHBOARD - Protocolo Cero Absoluto</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d0000 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #ff3333;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 0 30px rgba(255, 51, 51, 0.3);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #ff3333;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #ff3333;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .header .subtitle {
+            font-size: 14px;
+            color: #ffaa00;
+            font-weight: bold;
+        }
+
+        .warning-box {
+            background: rgba(255, 170, 0, 0.2);
+            border: 2px solid #ffaa00;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 25px;
+            text-align: center;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .warning-box strong {
+            color: #ffaa00;
+            font-size: 15px;
+        }
+
+        .key-section {
+            margin-bottom: 25px;
+        }
+
+        .key-section label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffaa00;
+        }
+
+        .key-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        input[type="password"] {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #666;
+            border-radius: 8px;
+            background: #222;
+            color: #fff;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input[type="password"]:focus {
+            border-color: #ff3333;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 18px;
+            font-size: 18px;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #0066ff 0%, #0044cc 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #0077ff 0%, #0055dd 100%);
+            box-shadow: 0 6px 20px rgba(0, 102, 255, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff3333 0%, #cc0000 100%);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #ff4444 0%, #dd0000 100%);
+            box-shadow: 0 6px 20px rgba(255, 51, 51, 0.5);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #00cc66 0%, #009944 100%);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, #00dd77 0%, #00aa55 100%);
+            box-shadow: 0 6px 20px rgba(0, 204, 102, 0.4);
+        }
+
+        .btn-secondary {
+            background: #444;
+            color: white;
+            font-size: 14px;
+            padding: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #555;
+        }
+
+        .response-box {
+            margin-top: 25px;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            line-height: 1.6;
+            display: none;
+            word-wrap: break-word;
+        }
+
+        .response-box.success {
+            background: rgba(0, 204, 102, 0.2);
+            border: 2px solid #00cc66;
+            color: #00ff88;
+        }
+
+        .response-box.error {
+            background: rgba(255, 51, 51, 0.2);
+            border: 2px solid #ff3333;
+            color: #ff6666;
+        }
+
+        .response-box.info {
+            background: rgba(0, 153, 255, 0.2);
+            border: 2px solid #0099ff;
+            color: #66ccff;
+        }
+
+        .response-box pre {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+
+        .emoji {
+            font-size: 24px;
+            margin-right: 8px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+            font-size: 12px;
+            color: #888;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .btn {
+                font-size: 16px;
+                padding: 15px;
+            }
+
+            .emoji {
+                font-size: 20px;
+            }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <h1>🚨 EMERGENCY DASHBOARD</h1>
+            <div class="subtitle">Protocolo Cero Absoluto - Cash Flow Control</div>
+        </div>
+
+        <!-- WARNING -->
+        <div class="warning-box">
+            <strong>⚠️ SALVAVIDAS DE EMERGENCIA</strong><br>
+            Úsalo solo si Discord falla o necesitas control inmediato del sistema.<br>
+            Guarda este archivo en tu celular para acceso 24/7.
+        </div>
+
+        <!-- API KEY SECTION -->
+        <div class="key-section">
+            <label for="apiKey">🔑 ADMIN API KEY</label>
+            <div class="key-input-group">
+                <input type="password" id="apiKey" placeholder="Ingresa tu X-Admin-Key">
+            </div>
+            <button class="btn btn-secondary" onclick="clearKey()">🗑️ Limpiar Key</button>
+        </div>
+
+        <!-- BUTTONS SECTION -->
+        <div class="buttons-section">
+            <button class="btn btn-primary" onclick="checkSystemHealth()">
+                <span class="emoji">🏥</span>VER ESTADO DEL SISTEMA
+            </button>
+
+            <button class="btn btn-danger" onclick="freezeSystem()">
+                <span class="emoji">❄️</span>CONGELAR TODO - PROTOCOLO CERO ABSOLUTO
+            </button>
+
+            <button class="btn btn-success" onclick="thawSystem()">
+                <span class="emoji">🔥</span>DESCONGELAR - THAW
+            </button>
+        </div>
+
+        <!-- RESPONSE BOX -->
+        <div id="responseBox" class="response-box"></div>
+
+        <!-- FOOTER -->
+        <div class="footer">
+            🦈 Cash Flow Automation System<br>
+            Railway Production: tranquil-freedom-production.up.railway.app<br>
+            Creado con ❄️🔥 por Claude & Fer
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'https://tranquil-freedom-production.up.railway.app';
+        const API_KEY_STORAGE = 'emergency_admin_key';
+
+        // Load API key from localStorage on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedKey = localStorage.getItem(API_KEY_STORAGE);
+            if (savedKey) {
+                document.getElementById('apiKey').value = savedKey;
+                showResponse('🔑 API Key cargada desde localStorage', 'info');
+            }
+        });
+
+        // Save API key to localStorage when changed
+        document.getElementById('apiKey').addEventListener('input', (e) => {
+            const key = e.target.value;
+            if (key) {
+                localStorage.setItem(API_KEY_STORAGE, key);
+            }
+        });
+
+        function clearKey() {
+            localStorage.removeItem(API_KEY_STORAGE);
+            document.getElementById('apiKey').value = '';
+            showResponse('🗑️ API Key eliminada de localStorage', 'info');
+        }
+
+        function getApiKey() {
+            return document.getElementById('apiKey').value.trim();
+        }
+
+        function showResponse(message, type = 'info', data = null) {
+            const box = document.getElementById('responseBox');
+            box.className = `response-box ${type}`;
+
+            let content = message;
+            if (data) {
+                content += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            }
+
+            box.innerHTML = content;
+            box.style.display = 'block';
+
+            // Auto-hide after 10 seconds for non-error messages
+            if (type !== 'error') {
+                setTimeout(() => {
+                    box.style.display = 'none';
+                }, 10000);
+            }
+        }
+
+        function showLoading(button) {
+            const originalText = button.innerHTML;
+            button.innerHTML = originalText + '<span class="loading"></span>';
+            button.disabled = true;
+            return originalText;
+        }
+
+        function hideLoading(button, originalText) {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+
+        async function checkSystemHealth() {
+            const button = event.target;
+            const originalText = showLoading(button);
+
+            try {
+                const response = await fetch(`${BASE_URL}/health`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.status === 'healthy') {
+                        showResponse('✅ <strong>SISTEMA SALUDABLE</strong><br>Todos los componentes operacionales', 'success', data);
+                    } else {
+                        showResponse('⚠️ <strong>SISTEMA CON PROBLEMAS</strong><br>Revisar detalles', 'error', data);
+                    }
+                } else {
+                    showResponse(`❌ <strong>ERROR ${response.status}</strong><br>No se pudo verificar el estado del sistema`, 'error', data);
+                }
+            } catch (error) {
+                showResponse(`🔌 <strong>ERROR DE CONEXIÓN</strong><br>${error.message}<br><br>Verifica tu conexión a internet o que Railway esté online`, 'error');
+            } finally {
+                hideLoading(button, originalText);
+            }
+        }
+
+        async function freezeSystem() {
+            const apiKey = getApiKey();
+
+            if (!apiKey) {
+                showResponse('⚠️ <strong>API KEY REQUERIDA</strong><br>Ingresa tu X-Admin-Key antes de congelar el sistema', 'error');
+                document.getElementById('apiKey').focus();
+                return;
+            }
+
+            // Confirmación adicional
+            if (!confirm('🚨 ¿ESTÁS SEGURO?\n\n❄️ Esto CONGELARÁ TODO EL SISTEMA.\n\nTodos los endpoints de ejecución (reorden, liquidación, combos) serán bloqueados.\n\n¿Continuar?')) {
+                return;
+            }
+
+            const button = event.target;
+            const originalText = showLoading(button);
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/admin/freeze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Key': apiKey
+                    },
+                    body: JSON.stringify({
+                        frozen_by: 'emergency_dashboard',
+                        reason: 'Manual freeze via Emergency Dashboard'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showResponse(`❄️🧊 <strong>PROTOCOLO CERO ABSOLUTO ACTIVADO</strong><br><br>${data.message}<br><br>🛡️ Sistema criogenizado - muro de fuego activo<br>⏰ Frozen at: ${data.frozen_at}`, 'success', data);
+                } else if (response.status === 401 || response.status === 403) {
+                    showResponse(`🔒 <strong>API KEY INVÁLIDA</strong><br>Verifica tu X-Admin-Key`, 'error', data);
+                } else if (response.status === 400 && data.error === 'System already frozen') {
+                    showResponse(`❄️ <strong>SISTEMA YA CONGELADO</strong><br>El Protocolo Cero Absoluto ya está activo`, 'info', data);
+                } else {
+                    showResponse(`❌ <strong>ERROR ${response.status}</strong><br>${data.error || 'Error desconocido'}`, 'error', data);
+                }
+            } catch (error) {
+                showResponse(`🔌 <strong>ERROR DE CONEXIÓN</strong><br>${error.message}<br><br>No se pudo congelar el sistema`, 'error');
+            } finally {
+                hideLoading(button, originalText);
+            }
+        }
+
+        async function thawSystem() {
+            const apiKey = getApiKey();
+
+            if (!apiKey) {
+                showResponse('⚠️ <strong>API KEY REQUERIDA</strong><br>Ingresa tu X-Admin-Key antes de descongelar el sistema', 'error');
+                document.getElementById('apiKey').focus();
+                return;
+            }
+
+            // Confirmación adicional
+            if (!confirm('🔥 ¿REACTIVAR SISTEMA?\n\n✅ Esto DESCONGELARÁ el sistema y restaurará todas las operaciones.\n\n¿Continuar?')) {
+                return;
+            }
+
+            const button = event.target;
+            const originalText = showLoading(button);
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/admin/thaw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Key': apiKey
+                    },
+                    body: JSON.stringify({
+                        thawed_by: 'emergency_dashboard'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showResponse(`🔥✅ <strong>SISTEMA REACTIVADO</strong><br><br>${data.message}<br><br>🚀 Operaciones restauradas - muro de fuego desactivado<br>⏰ Thawed at: ${data.thawed_at}`, 'success', data);
+                } else if (response.status === 401 || response.status === 403) {
+                    showResponse(`🔒 <strong>API KEY INVÁLIDA</strong><br>Verifica tu X-Admin-Key`, 'error', data);
+                } else if (response.status === 400 && data.error === 'System is not frozen') {
+                    showResponse(`✅ <strong>SISTEMA YA OPERACIONAL</strong><br>No hay freeze activo para descongelar`, 'info', data);
+                } else {
+                    showResponse(`❌ <strong>ERROR ${response.status}</strong><br>${data.error || 'Error desconocido'}`, 'error', data);
+                }
+            } catch (error) {
+                showResponse(`🔌 <strong>ERROR DE CONEXIÓN</strong><br>${error.message}<br><br>No se pudo descongelar el sistema`, 'error');
+            } finally {
+                hideLoading(button, originalText);
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ctrl/Cmd + 1: Check health
+            if ((e.ctrlKey || e.metaKey) && e.key === '1') {
+                e.preventDefault();
+                checkSystemHealth();
+            }
+            // Ctrl/Cmd + 2: Freeze
+            if ((e.ctrlKey || e.metaKey) && e.key === '2') {
+                e.preventDefault();
+                freezeSystem();
+            }
+            // Ctrl/Cmd + 3: Thaw
+            if ((e.ctrlKey || e.metaKey) && e.key === '3') {
+                e.preventDefault();
+                thawSystem();
+            }
+        });
+
+        // Show keyboard shortcuts hint
+        console.log('⌨️ KEYBOARD SHORTCUTS:');
+        console.log('Ctrl/Cmd + 1: Check System Health');
+        console.log('Ctrl/Cmd + 2: Freeze System');
+        console.log('Ctrl/Cmd + 3: Thaw System');
+    </script>
+</body>
+</html>
