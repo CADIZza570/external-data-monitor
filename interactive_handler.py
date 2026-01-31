@@ -460,6 +460,57 @@ class InteractiveHandler:
             else:
                 return "🔴 ROI bajo. Mejor liquidar dead stock que invertir en esto."
 
+    def create_price_surge_button(self, sku: str, surge_price: float, current_price: float) -> Dict:
+        """
+        Crea botón para activar Price Surge (precio dinámico).
+
+        Args:
+            sku: SKU del producto
+            surge_price: Precio sugerido con surge
+            current_price: Precio actual
+
+        Returns:
+            Dict con configuración del botón
+        """
+        surge_pct = ((surge_price - current_price) / current_price) * 100
+
+        return {
+            "label": f"💹 PRECIO +{surge_pct:.0f}% (48h)",
+            "style": "primary",  # Azul
+            "action_id": f"price_surge_{sku}",
+            "url": f"{os.getenv('BASE_URL', 'http://localhost:5000')}/api/execute-price-surge",
+            "metadata": {
+                "sku": sku,
+                "surge_price": surge_price,
+                "duration_hours": 48
+            }
+        }
+
+    def create_bundle_button(self, star_sku: str, dead_sku: str, bundle_price: float) -> Dict:
+        """
+        Crea botón para activar Parasite Bundle.
+
+        Args:
+            star_sku: SKU producto estrella
+            dead_sku: SKU dead stock
+            bundle_price: Precio del bundle
+
+        Returns:
+            Dict con configuración del botón
+        """
+        return {
+            "label": f"📦 BUNDLE ${bundle_price:.0f}",
+            "style": "success",  # Verde
+            "action_id": f"bundle_{star_sku}_{dead_sku}",
+            "url": f"{os.getenv('BASE_URL', 'http://localhost:5000')}/api/execute-bundle",
+            "metadata": {
+                "star_sku": star_sku,
+                "dead_sku": dead_sku,
+                "bundle_price": bundle_price,
+                "duration_days": 7
+            }
+        }
+
     def add_freeze_button(self, actions: List[Dict]) -> List[Dict]:
         """
         Agrega botón de CONGELAR TODO a lista de acciones.

@@ -2131,3 +2131,520 @@ def admin_seed_simple():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@cashflow_bp.route('/api/admin/war-room-simulator', methods=['POST'])
+def admin_war_room_simulator():
+    """
+    🦈 WAR ROOM SIMULATOR: Inyectar datos sintéticos de combate
+
+    Genera escenarios de estrés para entrenar Tiburón:
+    - Ventas con spikes/caídas extremas (últimos 7 días)
+    - CCC alargado (activar Escudo de Liquidez)
+    - Attribution tracking (CAC ascendente Instagram Ads)
+    - Training logs (feedback loop para User Persona)
+
+    Body: {"key": "tiburon-war-room-2026"}
+
+    Returns: Resumen de datos inyectados
+    """
+    try:
+        data = request.get_json() or {}
+        if data.get('key') != 'tiburon-war-room-2026':
+            return jsonify({"error": "Unauthorized"}), 401
+
+        import random
+        from datetime import datetime, timedelta
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # ====================================================================
+        # 1. ENSURE BASE PRODUCTS
+        # ====================================================================
+        base_products = [
+            {
+                "product_id": "WINTER-001",
+                "name": "Chaqueta Térmica Winter Pro",
+                "sku": "JACKET-WINTER-01",
+                "stock": 12,
+                "price": 189.99,
+                "cost_price": 95.00,
+                "velocity_daily": 3.2,
+                "total_sales_30d": 96,
+                "category": "A"
+            },
+            {
+                "product_id": "WINTER-002",
+                "name": "Boots Waterproof Premium",
+                "sku": "BOOTS-WP-01",
+                "stock": 8,
+                "price": 159.99,
+                "cost_price": 80.00,
+                "velocity_daily": 2.8,
+                "total_sales_30d": 84,
+                "category": "A"
+            },
+            {
+                "product_id": "WINTER-003",
+                "name": "Guantes Térmicos Arctic",
+                "sku": "GLOVES-ARC-01",
+                "stock": 25,
+                "price": 45.99,
+                "cost_price": 18.00,
+                "velocity_daily": 4.5,
+                "total_sales_30d": 135,
+                "category": "A"
+            }
+        ]
+
+        # Crear tablas si no existen
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sales_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sku TEXT NOT NULL,
+                product_name TEXT,
+                quantity INTEGER DEFAULT 1,
+                sale_date TEXT,
+                order_id TEXT UNIQUE,
+                shop TEXT DEFAULT 'columbus-shop',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sales_attribution (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id TEXT NOT NULL,
+                channel TEXT NOT NULL,
+                cac REAL DEFAULT 0,
+                attributed_revenue REAL DEFAULT 0,
+                sale_date TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS interaction_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                interaction_date TEXT NOT NULL,
+                action_type TEXT NOT NULL,
+                sku TEXT,
+                decision TEXT,
+                roi_at_decision REAL,
+                cac_at_decision REAL,
+                inventory_level INTEGER,
+                outcome TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cash_flow_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                metric_date TEXT NOT NULL,
+                days_inventory REAL DEFAULT 30,
+                days_receivable REAL DEFAULT 15,
+                days_payable REAL DEFAULT 30,
+                cash_conversion_cycle REAL,
+                liquidity_shield_active INTEGER DEFAULT 0,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        conn.commit()
+
+        # Seed productos base
+        cursor.execute("SELECT COUNT(*) FROM products WHERE shop='columbus-shop'")
+        if cursor.fetchone()[0] == 0:
+            now = datetime.now().isoformat()
+            yesterday = (datetime.now() - timedelta(days=1)).isoformat()
+
+            for p in base_products:
+                cursor.execute("""
+                    INSERT OR REPLACE INTO products
+                    (product_id, name, sku, stock, price, cost_price, velocity_daily,
+                     total_sales_30d, category, shop, last_updated, last_sale_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    p["product_id"], p["name"], p["sku"], p["stock"],
+                    p["price"], p["cost_price"], p["velocity_daily"],
+                    p["total_sales_30d"], p["category"], "columbus-shop",
+                    now, yesterday
+                ))
+
+        conn.commit()
+
+        # ====================================================================
+        # 2. INJECT SYNTHETIC SALES (7 días con spikes/caídas)
+        # ====================================================================
+        config = {
+            "days_to_simulate": 7,
+            "target_skus": ["JACKET-WINTER-01", "BOOTS-WP-01", "GLOVES-ARC-01"],
+            "weather_spike": 1.5,
+            "stress_scenarios": {
+                2: 3.0,   # Día 2: +200% spike
+                4: 0.0,   # Día 4: Dead calm
+                6: 1.8    # Día 6: Recuperación
+            },
+            "attribution_mix": {
+                "Instagram Ads": 0.80,
+                "Organic": 0.10,
+                "Google Ads": 0.07,
+                "Referral": 0.03
+            },
+            "initial_cac": 25.0,
+            "cac_daily_increase": 3.5
+        }
+
+        today = datetime.now()
+        total_sales = 0
+
+        for sku in config["target_skus"]:
+            cursor.execute("""
+                SELECT product_id, name, velocity_daily, price, cost_price
+                FROM products WHERE sku = ?
+            """, (sku,))
+
+            product = cursor.fetchone()
+            if not product:
+                continue
+
+            product_id, name, velocity_base, price, cost_price = product
+
+            for days_ago in range(config["days_to_simulate"], 0, -1):
+                sale_date = today - timedelta(days=days_ago)
+
+                # Calcular multiplicador
+                multiplier = config["weather_spike"]
+                if days_ago in config["stress_scenarios"]:
+                    multiplier = config["stress_scenarios"][days_ago]
+
+                daily_sales = int(velocity_base * multiplier)
+
+                # Variabilidad ±10%
+                if daily_sales > 0:
+                    daily_sales = max(0, int(daily_sales + random.uniform(-daily_sales * 0.1, daily_sales * 0.1)))
+
+                # Insertar ventas
+                for sale_num in range(daily_sales):
+                    order_id = f"WAR-{sale_date.strftime('%Y%m%d')}-{sku}-{sale_num:03d}"
+
+                    # Canal
+                    channel = random.choices(
+                        list(config["attribution_mix"].keys()),
+                        weights=list(config["attribution_mix"].values())
+                    )[0]
+
+                    # CAC ascendente
+                    cac = config["initial_cac"] + (config["cac_daily_increase"] * (7 - days_ago))
+
+                    # Insert sale
+                    try:
+                        cursor.execute("""
+                            INSERT INTO sales_history
+                            (sku, product_name, quantity, sale_date, order_id, shop)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (sku, name, 1, sale_date.isoformat(), order_id, 'columbus-shop'))
+
+                        cursor.execute("""
+                            INSERT INTO sales_attribution
+                            (order_id, channel, cac, attributed_revenue, sale_date)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (order_id, channel, cac, price, sale_date.isoformat()))
+
+                        total_sales += 1
+                    except sqlite3.IntegrityError:
+                        # Duplicate order_id - skip
+                        pass
+
+            # Actualizar velocity
+            cursor.execute("""
+                UPDATE products
+                SET velocity_daily = velocity_daily + ?,
+                    total_sales_30d = total_sales_30d + ?,
+                    last_sale_date = ?
+                WHERE sku = ?
+            """, (total_sales / config["days_to_simulate"] * 0.1, total_sales, today.isoformat(), sku))
+
+        conn.commit()
+
+        # ====================================================================
+        # 3. POPULATE TRAINING LOGS (30 interacciones)
+        # ====================================================================
+        decision_templates = {
+            "aggressive": [
+                {"action": "reorder_high", "decision": "Reordenar 50 unidades", "roi": 120, "outcome": "Éxito"},
+                {"action": "reorder_high", "decision": "Reordenar 40 unidades", "roi": 95, "outcome": "Parcial"},
+            ],
+            "cautious": [
+                {"action": "skip_reorder", "decision": "No reordenar", "roi": 80, "outcome": "Correcto"},
+                {"action": "skip_reorder", "decision": "Reducir a 10", "roi": 60, "outcome": "Correcto"},
+            ],
+            "liquidation": [
+                {"action": "fire_sale", "decision": "Liquidar -30%", "roi": 40, "outcome": "Exitoso"},
+            ]
+        }
+
+        for days_ago in range(30, 0, -1):
+            interaction_date = today - timedelta(days=days_ago)
+            decision_type = random.choices(
+                ["aggressive", "cautious", "liquidation"],
+                weights=[0.60, 0.30, 0.10]
+            )[0]
+
+            template = random.choice(decision_templates[decision_type])
+            sku = random.choice(config["target_skus"])
+            cac = config["initial_cac"] + random.uniform(-5, 15)
+
+            cursor.execute("""
+                INSERT INTO interaction_metrics
+                (interaction_date, action_type, sku, decision, roi_at_decision,
+                 cac_at_decision, inventory_level, outcome, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                interaction_date.isoformat(),
+                template["action"],
+                sku,
+                template["decision"],
+                template["roi"],
+                cac,
+                random.randint(5, 50),
+                template["outcome"],
+                "War Room simulation"
+            ))
+
+        conn.commit()
+
+        # ====================================================================
+        # 4. CCC METRICS (simular estrés)
+        # ====================================================================
+        ccc_extended = 30  # Dentro de rango
+        cursor.execute("""
+            INSERT INTO cash_flow_metrics
+            (metric_date, days_inventory, days_receivable, days_payable,
+             cash_conversion_cycle, liquidity_shield_active, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            datetime.now().isoformat(),
+            45, 20, 50, ccc_extended, 0,
+            "War Room stress test"
+        ))
+
+        conn.commit()
+        conn.close()
+
+        # ====================================================================
+        # RESULTADO
+        # ====================================================================
+        return jsonify({
+            "success": True,
+            "war_room_data": {
+                "sales_injected": total_sales,
+                "days_simulated": config["days_to_simulate"],
+                "training_logs": 30,
+                "ccc": ccc_extended,
+                "liquidity_shield": "Inactive (CCC < 60)",
+                "user_persona": "CAZADOR AGRESIVO (60% aggressive decisions)"
+            },
+            "message": "War Room data inyectada - Tiburón listo para combate"
+        }), 200
+
+    except Exception as e:
+        logger.error(f"War Room error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@cashflow_bp.route('/api/execute-price-surge', methods=['POST'])
+@log_execution_attempt
+@check_system_status
+def execute_price_surge():
+    """
+    🦈 PRICE SURGE: Activar precio dinámico por temperatura extrema
+
+    Aumenta precio 10-15% durante 48h cuando temperatura < -10°C.
+
+    Request Body:
+        {
+            "sku": "JACKET-WINTER-01",
+            "surge_price": 209.99,
+            "duration_hours": 48,
+            "confirm": true
+        }
+
+    Returns:
+        {
+            "success": true,
+            "action": "price_surge",
+            "sku": "JACKET-WINTER-01",
+            "original_price": 189.99,
+            "surge_price": 209.99,
+            "projected_net_increase": 150.00,
+            "expires_at": "2026-02-02T12:00:00"
+        }
+    """
+    try:
+        from market_predator import PriceSurgeEngine
+
+        data = request.get_json() or {}
+
+        sku = data.get('sku')
+        surge_price = data.get('surge_price')
+        duration_hours = data.get('duration_hours', 48)
+        confirm = data.get('confirm', False)
+
+        if not sku or not surge_price:
+            return jsonify({"error": "Missing sku or surge_price"}), 400
+
+        if not confirm:
+            return jsonify({
+                "error": "Confirmation required",
+                "message": "Set confirm=true to activate price surge"
+            }), 400
+
+        # Activar surge
+        engine = PriceSurgeEngine()
+        result = engine.activate_price_surge(sku, surge_price, duration_hours)
+
+        # Tracking interacción
+        try:
+            handler = InteractiveHandler()
+            handler.track_interaction(
+                action="price_surge",
+                context=f"Price surge activated for {sku}",
+                sku=sku,
+                metadata={"surge_price": surge_price, "duration_hours": duration_hours}
+            )
+        except Exception:
+            pass
+
+        return jsonify({
+            "success": True,
+            "action": "price_surge",
+            **result,
+            "message": f"💹 Precio dinámico activado: {sku} → ${surge_price} (48h)"
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Price surge error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@cashflow_bp.route('/api/execute-bundle', methods=['POST'])
+@log_execution_attempt
+@check_system_status
+def execute_bundle():
+    """
+    🦈 PARASITE BUNDLE: Activar bundle estrella + dead stock
+
+    Bundle: Producto estrella a precio full + dead stock 60% off.
+
+    Request Body:
+        {
+            "star_sku": "GLOVES-ARC-01",
+            "dead_sku": "SCARF-DEAD-01",
+            "bundle_price": 65.99,
+            "duration_days": 7,
+            "confirm": true
+        }
+
+    Returns:
+        {
+            "success": true,
+            "action": "parasite_bundle",
+            "star_sku": "GLOVES-ARC-01",
+            "dead_sku": "SCARF-DEAD-01",
+            "bundle_price": 65.99,
+            "expires_at": "2026-02-07T00:00:00"
+        }
+    """
+    try:
+        from market_predator import ParasiteBundleEngine
+
+        data = request.get_json() or {}
+
+        star_sku = data.get('star_sku')
+        dead_sku = data.get('dead_sku')
+        bundle_price = data.get('bundle_price')
+        duration_days = data.get('duration_days', 7)
+        confirm = data.get('confirm', False)
+
+        if not star_sku or not dead_sku or not bundle_price:
+            return jsonify({"error": "Missing star_sku, dead_sku or bundle_price"}), 400
+
+        if not confirm:
+            return jsonify({
+                "error": "Confirmation required",
+                "message": "Set confirm=true to activate bundle"
+            }), 400
+
+        # Activar bundle
+        engine = ParasiteBundleEngine()
+        result = engine.activate_bundle(star_sku, dead_sku, bundle_price, duration_days)
+
+        # Tracking interacción
+        try:
+            handler = InteractiveHandler()
+            handler.track_interaction(
+                action="parasite_bundle",
+                context=f"Bundle activated: {star_sku} + {dead_sku}",
+                sku=star_sku,
+                metadata={"dead_sku": dead_sku, "bundle_price": bundle_price}
+            )
+        except Exception:
+            pass
+
+        return jsonify({
+            "success": True,
+            "action": "parasite_bundle",
+            **result,
+            "message": f"📦 Bundle activado: {star_sku} + {dead_sku} @ ${bundle_price}"
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Bundle error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@cashflow_bp.route('/api/predator-suggestions', methods=['GET'])
+def predator_suggestions():
+    """
+    🦈 MARKET PREDATOR: Obtener sugerencias comerciales depredadoras
+
+    Returns:
+        {
+            "price_surges": [
+                {
+                    "sku": "JACKET-WINTER-01",
+                    "suggested_surge_price": 209.99,
+                    "surge_percentage": 10.0,
+                    "reason": "Temperatura -20°C (frío extremo)",
+                    "projected_net_increase": 150.00
+                }
+            ],
+            "bundles": [
+                {
+                    "star_sku": "GLOVES-ARC-01",
+                    "dead_sku": "SCARF-DEAD-01",
+                    "bundle_price": 65.99,
+                    "projected_margin": 35.00,
+                    "reason": "Estrella (4.5/día) absorbe dead stock (15 units)"
+                }
+            ],
+            "has_opportunities": true
+        }
+    """
+    try:
+        from market_predator import get_predator_suggestions
+
+        shop = request.args.get('shop', 'columbus-shop')
+
+        suggestions = get_predator_suggestions(shop)
+
+        return jsonify(suggestions), 200
+
+    except Exception as e:
+        logger.error(f"Predator suggestions error: {e}")
+        return jsonify({"error": str(e)}), 500
+

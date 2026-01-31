@@ -86,6 +86,27 @@ class PulseScheduler:
             logger.error(f"Exception fetching shield: {e}")
             return {}
 
+    def fetch_predator_suggestions(self) -> Dict:
+        """
+        Obtiene sugerencias comerciales depredadoras (Price Surge + Bundles).
+
+        Returns:
+            Dict con price_surges y bundles
+        """
+        try:
+            url = f"{self.api_base_url}/api/predator-suggestions"
+            response = requests.get(url, timeout=10)
+
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Error fetching predator suggestions: {response.status_code}")
+                return {'price_surges': [], 'bundles': [], 'has_opportunities': False}
+
+        except Exception as e:
+            logger.error(f"Exception fetching predator suggestions: {e}")
+            return {'price_surges': [], 'bundles': [], 'has_opportunities': False}
+
     def fetch_top_roi_products(self, limit: int = 3) -> List[Dict]:
         """
         Obtiene top productos con mejor ROI usando external signals.
@@ -203,7 +224,8 @@ class PulseScheduler:
         summary: Dict,
         shield: Dict,
         top_roi: List[Dict],
-        signals: Dict
+        signals: Dict,
+        predator: Optional[Dict] = None
     ) -> Dict:
         """
         Genera Sticker Tiburón con contexto predictivo.
@@ -213,10 +235,13 @@ class PulseScheduler:
             shield: Estado del Escudo
             top_roi: Top productos ROI
             signals: Señales externas (clima + feriados)
+            predator: Sugerencias comerciales depredadoras (price surge + bundles)
 
         Returns:
             Dict con mensaje Discord + embed
         """
+        if predator is None:
+            predator = {'price_surges': [], 'bundles': [], 'has_opportunities': False}
 
         # Header con timestamp
         now = datetime.now()
@@ -285,6 +310,34 @@ class PulseScheduler:
         if alerts:
             alerts_section = "\n\n🚨 **ALERTAS:**\n" + "\n".join(f"- {alert}" for alert in alerts)
 
+        # 💹 SUGERENCIAS COMERCIALES DEPREDADORAS
+        predator_section = ""
+        if predator.get('has_opportunities'):
+            predator_section = "\n\n💹 **INSTINTO DEPREDADOR:**\n"
+
+            # Price Surges
+            price_surges = predator.get('price_surges', [])
+            if price_surges:
+                surge = price_surges[0]  # Top surge
+                sku = surge.get('sku', '')
+                surge_pct = surge.get('surge_percentage', 0)
+                projected_increase = surge.get('projected_net_increase', 0)
+                projected_increase_pct = surge.get('projected_net_increase_pct', 0)
+
+                predator_section += f"- 💹 **Price Surge:** +{surge_pct:.0f}% en {sku} (48h)\n"
+                predator_section += f"  📈 Proyección: +${projected_increase:.0f} neto (+{projected_increase_pct:.0f}%)\n"
+
+            # Bundles
+            bundles = predator.get('bundles', [])
+            if bundles:
+                bundle = bundles[0]  # Top bundle
+                star_name = bundle.get('star_name', '')
+                dead_value = bundle.get('dead_stock_value', 0)
+                margin = bundle.get('projected_margin', 0)
+
+                predator_section += f"- 📦 **Bundle Parásito:** {star_name} absorbe dead stock\n"
+                predator_section += f"  💰 Libera ${dead_value:.0f} + margen ${margin:.0f}\n"
+
         # MENSAJE COMPLETO
         message = f"""🦈 **TIBURÓN PREDICTIVO - PULSO DIARIO**
 ⏰ {timestamp}
@@ -299,36 +352,69 @@ class PulseScheduler:
 🛡️ **Escudo de Liquidez:** {shield_status}
 - CCC: {ccc_days:.1f} días
 - Estado: {freeze_emoji}
-{roi_section}{alerts_section}
+{roi_section}{predator_section}{alerts_section}
 
 **Veredicto:** {'🔥 Dale gas con las oportunidades!' if top_roi and not freeze_active else '🛡️ Modo cautela - monitorear liquidez'}
 """
 
         # Botones interactivos
         components = []
-        if top_roi and not freeze_active:
-            # Botón para producto top
-            top_product = top_roi[0]
-            sku = top_product.get('sku')
-            units = top_product.get('units')
+        buttons = []
 
+        if not freeze_active:
+            # Botón reorder si hay ROI top
+            if top_roi:
+                top_product = top_roi[0]
+                sku = top_product.get('sku')
+                units = top_product.get('units')
+
+                buttons.append({
+                    "type": 2,
+                    "style": 3,  # Green
+                    "label": f"🔥 Reordenar {units}x",
+                    "custom_id": f"approve_reorder_{sku}_{units}"
+                })
+
+            # Botón Price Surge si existe oportunidad
+            if predator.get('price_surges'):
+                surge = predator['price_surges'][0]
+                sku = surge.get('sku', '')
+                surge_pct = surge.get('surge_percentage', 0)
+
+                buttons.append({
+                    "type": 2,
+                    "style": 1,  # Blue
+                    "label": f"💹 Surge +{surge_pct:.0f}%",
+                    "custom_id": f"price_surge_{sku}"
+                })
+
+            # Botón Bundle si existe oportunidad
+            if predator.get('bundles'):
+                bundle = predator['bundles'][0]
+                star_sku = bundle.get('star_sku', '')
+                dead_sku = bundle.get('dead_sku', '')
+
+                buttons.append({
+                    "type": 2,
+                    "style": 3,  # Green
+                    "label": f"📦 Bundle",
+                    "custom_id": f"bundle_{star_sku}_{dead_sku}"
+                })
+
+            # Botón Ver Detalles
+            if buttons:
+                buttons.append({
+                    "type": 2,
+                    "style": 2,  # Gray
+                    "label": "📊 Detalles",
+                    "custom_id": "details_pulse"
+                })
+
+        if buttons:
             components = [
                 {
                     "type": 1,
-                    "components": [
-                        {
-                            "type": 2,
-                            "style": 3,  # Green
-                            "label": f"Reordenar {units}x {sku}",
-                            "custom_id": f"approve_reorder_{sku}_{units}"
-                        },
-                        {
-                            "type": 2,
-                            "style": 1,  # Blue
-                            "label": "Ver Detalles",
-                            "custom_id": f"details_{sku}"
-                        }
-                    ]
+                    "components": buttons[:5]  # Max 5 botones
                 }
             ]
 
@@ -397,10 +483,11 @@ class PulseScheduler:
         signals = self.fetch_external_signals(
             product_name=top_roi[0].get('name', 'Generic Product') if top_roi else 'Generic Product'
         )
+        predator = self.fetch_predator_suggestions()
 
         # 2. Generate Sticker
         logger.info("Generando Sticker...")
-        sticker = self.generate_sticker(summary, shield, top_roi, signals)
+        sticker = self.generate_sticker(summary, shield, top_roi, signals, predator)
 
         # 3. Send
         logger.info("Enviando a Discord...")
