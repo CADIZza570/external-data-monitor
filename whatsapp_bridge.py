@@ -87,10 +87,10 @@ def generate_mobile_pulse():
         try:
             import sys
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-            from market_predator import MarketPredator
+            from market_predator import PriceSurgeEngine
 
-            predator = MarketPredator()
-            suggestions = predator.get_suggestions()
+            predator = PriceSurgeEngine()
+            suggestions = predator.get_surge_suggestions()
 
             # Price Surges
             for surge in suggestions.get('price_surges', []):
@@ -301,9 +301,9 @@ def process_whatsapp_action(action, sku, user):
 
         elif action == 'analyze':
             # 🔍 FORZAR ANÁLISIS
-            from market_predator import MarketPredator
-            predator = MarketPredator()
-            suggestions = predator.get_suggestions()
+            from market_predator import PriceSurgeEngine
+            predator = PriceSurgeEngine()
+            suggestions = predator.get_surge_suggestions()
 
             total_opps = len(suggestions.get('price_surges', [])) + len(suggestions.get('bundles', []))
 
