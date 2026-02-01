@@ -15,6 +15,7 @@ Version: 1.0.0
 import os
 import hmac
 import hashlib
+import base64
 import logging
 from datetime import datetime, timedelta
 from flask import jsonify
@@ -35,7 +36,7 @@ class CerebroCentral:
 
         Args:
             data (bytes): Raw request body
-            hmac_header (str): X-Shopify-Hmac-SHA256 header
+            hmac_header (str): X-Shopify-Hmac-SHA256 header (base64)
 
         Returns:
             bool: True si HMAC válido
@@ -44,11 +45,22 @@ class CerebroCentral:
             logger.warning("⚠️ SHOPIFY_WEBHOOK_SECRET no configurado - saltando verificación")
             return True  # En desarrollo, permitir sin secret
 
-        computed_hmac = hmac.new(
-            self.shopify_secret.encode('utf-8'),
-            data,
-            hashlib.sha256
-        ).hexdigest()
+        # Shopify envía HMAC en base64
+        computed_hmac = base64.b64encode(
+            hmac.new(
+                self.shopify_secret.encode('utf-8'),
+                data,
+                hashlib.sha256
+            ).digest()
+        ).decode()
+
+        # Logging detallado para debug
+        logger.info(f"🔐 HMAC Debug:")
+        logger.info(f"  Secret configurado: {'***' + self.shopify_secret[-4:] if len(self.shopify_secret) > 4 else 'NONE'}")
+        logger.info(f"  Payload size: {len(data)} bytes")
+        logger.info(f"  HMAC recibido: {hmac_header[:20]}...")
+        logger.info(f"  HMAC calculado: {computed_hmac[:20]}...")
+        logger.info(f"  Match: {hmac.compare_digest(computed_hmac, hmac_header)}")
 
         return hmac.compare_digest(computed_hmac, hmac_header)
 
@@ -380,14 +392,21 @@ def shopify_orders_webhook_endpoint(request):
 
         # CASO 1: Webhook Shopify con HMAC
         if hmac_header:
+            logger.info(f"🔐 Verificando HMAC Shopify...")
             raw_data = request.get_data()
+
             if not cerebro.verify_shopify_hmac(raw_data, hmac_header):
-                logger.warning("⚠️ HMAC inválido - webhook rechazado")
-                logger.warning(f"Headers: {dict(request.headers)}")
+                logger.error("❌ HMAC INVÁLIDO - Webhook rechazado")
+                logger.error(f"📋 Headers recibidos:")
+                for key, value in request.headers.items():
+                    if 'shopify' in key.lower() or 'hmac' in key.lower():
+                        logger.error(f"  {key}: {value[:50]}...")
+                logger.error(f"💾 Payload preview: {str(order_data)[:200]}...")
                 return {
                     'success': False,
                     'error': 'Invalid HMAC signature'
                 }, 403
+
             logger.info("✅ HMAC verificado - webhook Shopify auténtico")
 
         # CASO 2: Llamada manual con X-Admin-Key
