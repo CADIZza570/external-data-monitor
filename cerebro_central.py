@@ -366,34 +366,53 @@ def shopify_orders_webhook_endpoint(request):
         tuple: (response_dict, status_code)
     """
     try:
-        # 1. VERIFICAR SEGURIDAD
+        # 1. LOGUEAR PAYLOAD RECIBIDO (para debug)
+        order_data = request.get_json()
+        logger.info(f"📥 Webhook recibido: order_id={order_data.get('id', 'N/A')}, order_number={order_data.get('order_number', 'N/A')}")
+
+        # 2. VERIFICAR SEGURIDAD
         cerebro = CerebroCentral()
 
-        # Verificar X-Admin-Key (backup si no hay HMAC)
+        hmac_header = request.headers.get('X-Shopify-Hmac-SHA256', '')
         admin_key = request.headers.get('X-Admin-Key', '')
         expected_key = os.getenv('ADMIN_API_KEY', 'shark-predator-2026')
+        shopify_secret = os.getenv('SHOPIFY_WEBHOOK_SECRET', '')
 
-        hmac_header = request.headers.get('X-Shopify-Hmac-SHA256', '')
-
+        # CASO 1: Webhook Shopify con HMAC
         if hmac_header:
-            # Verificar HMAC Shopify
             raw_data = request.get_data()
             if not cerebro.verify_shopify_hmac(raw_data, hmac_header):
                 logger.warning("⚠️ HMAC inválido - webhook rechazado")
+                logger.warning(f"Headers: {dict(request.headers)}")
                 return {
                     'success': False,
                     'error': 'Invalid HMAC signature'
                 }, 403
-        elif admin_key != expected_key:
-            # Fallback a X-Admin-Key
-            logger.warning("⚠️ X-Admin-Key inválido - webhook rechazado")
+            logger.info("✅ HMAC verificado - webhook Shopify auténtico")
+
+        # CASO 2: Llamada manual con X-Admin-Key
+        elif admin_key:
+            if admin_key != expected_key:
+                logger.warning("⚠️ X-Admin-Key inválido - webhook rechazado")
+                return {
+                    'success': False,
+                    'error': 'Invalid X-Admin-Key'
+                }, 403
+            logger.info("✅ X-Admin-Key verificado - llamada manual")
+
+        # CASO 3: Sin autenticación (solo permitir si NO hay secret configurado)
+        elif not shopify_secret:
+            logger.warning("⚠️ MODO DESARROLLO - Sin verificación de seguridad")
+        else:
+            # Hay secret configurado pero no enviaron HMAC ni Admin-Key
+            logger.warning("⚠️ Webhook sin autenticación - rechazado")
+            logger.warning(f"Headers: {dict(request.headers)}")
             return {
                 'success': False,
-                'error': 'Invalid X-Admin-Key'
+                'error': 'Missing authentication (HMAC or X-Admin-Key required)'
             }, 403
 
-        # 2. PROCESAR ORDEN
-        order_data = request.get_json()
+        # 3. PROCESAR ORDEN
 
         if not order_data:
             return {
@@ -405,7 +424,7 @@ def shopify_orders_webhook_endpoint(request):
 
         logger.info(f"✅ Webhook procesado: {result['success']}")
 
-        # 3. RETORNAR RESULTADO
+        # 4. RETORNAR RESULTADO
         status_code = 200 if result['success'] else 500
 
         return result, status_code
