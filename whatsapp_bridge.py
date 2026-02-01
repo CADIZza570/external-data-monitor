@@ -116,7 +116,22 @@ def generate_mobile_pulse():
         except Exception as e:
             logger.warning(f"⚠️ No se pudieron obtener oportunidades: {e}")
 
-        # 5. GENERAR STICKER TEXTO PLANO (Optimizado WhatsApp)
+        # 5. OBTENER VENTAS DEL DÍA
+        daily_sales = 0
+        orders_count = 0
+        try:
+            today_str = today.date().isoformat()
+            sales_result = conn.execute('''
+                SELECT total_sales, orders_count FROM daily_sales WHERE date = ?
+            ''', (today_str,)).fetchone()
+
+            if sales_result:
+                daily_sales = sales_result['total_sales'] or 0
+                orders_count = sales_result['orders_count'] or 0
+        except:
+            pass  # Tabla no existe aún
+
+        # 6. GENERAR STICKER TEXTO PLANO (Optimizado WhatsApp)
         sticker = f"""╔═══════════════════════════════════════╗
 ║  🦈 PULSO PREDICTIVO - {today.strftime('%d/%m/%Y')}
 ╚═══════════════════════════════════════╝
@@ -126,6 +141,10 @@ def generate_mobile_pulse():
 ├─ Productos: {total_products}
 ├─ Stock Crítico: {critical_stock}
 └─ Stockouts: {stockouts}
+
+🛒 VENTAS HOY:
+├─ Total: ${daily_sales:,.2f}
+└─ Órdenes: {orders_count}
 
 🌡️ CONTEXTO CLIMÁTICO:
 ├─ Columbus, OH: {weather_temp}
@@ -147,7 +166,7 @@ def generate_mobile_pulse():
         sticker += f"║  🦈 TIBURÓN LISTO PARA CAZAR\n"
         sticker += f"╚═══════════════════════════════════════╝"
 
-        # 6. GENERAR QUICK REPLIES (Optimizado Twilio max 24 chars)
+        # 7. GENERAR QUICK REPLIES (Optimizado Twilio max 24 chars)
         quick_replies = []
 
         if opportunities:
@@ -168,13 +187,15 @@ def generate_mobile_pulse():
                 {'title': '❄️ Freeze Precios', 'action': 'freeze', 'sku': ''}
             ]
 
-        # 7. METADATA
+        # 8. METADATA
         metadata = {
             'timestamp': today.isoformat(),
             'temperature': weather_temp,
             'inventory_value': total_inventory,
             'opportunities_count': len(opportunities),
-            'critical_stock': critical_stock
+            'critical_stock': critical_stock,
+            'daily_sales': daily_sales,
+            'orders_count': orders_count
         }
 
         logger.info(f"✅ Mobile Pulse generado: {len(opportunities)} oportunidades")

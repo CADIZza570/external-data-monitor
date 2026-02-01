@@ -2557,6 +2557,32 @@ def whatsapp_alerts_route():
     result, status = whatsapp_alerts_endpoint()
     return jsonify(result), status
 
+@app.route('/api/webhook/shopify/orders', methods=['POST'])
+def shopify_orders_webhook_route():
+    """
+    🧠 CEREBRO CENTRAL - Webhook Shopify orders/create o orders/paid.
+
+    Procesa venta en tiempo real:
+    - Actualiza stock, velocity, total_sales_30d
+    - Detecta alertas post-venta (stock crítico, alto ROI)
+    - Genera mensaje unificado para Make.com + Twilio
+
+    Security:
+    - X-Shopify-Hmac-SHA256 (preferred)
+    - X-Admin-Key (fallback)
+
+    Returns:
+        JSON con resultado procesamiento + mensaje WhatsApp
+    """
+    from cerebro_central import shopify_orders_webhook_endpoint, ensure_daily_sales_table
+    from flask import jsonify
+
+    # Asegurar tabla daily_sales existe
+    ensure_daily_sales_table()
+
+    result, status = shopify_orders_webhook_endpoint(request)
+    return jsonify(result), status
+
 # 📦 ENDPOINTS DE PRODUCTOS (PARA EL DASHBOARD)
 # ============================================================
 
