@@ -2538,6 +2538,25 @@ def whatsapp_action_route():
     from whatsapp_bridge import whatsapp_action_endpoint
     return whatsapp_action_endpoint(request)
 
+@app.route('/api/v1/whatsapp-alerts', methods=['GET'])
+def whatsapp_alerts_route():
+    """
+    🚨 WhatsApp Alerts - Genera alertas inteligentes proactivas.
+
+    Verifica 4 tipos de alertas:
+    - Stock Crítico/Stockout Inminente
+    - Dead Stock Creciendo
+    - Price Surge Oportunidad
+    - Post-Mortem Automática
+
+    Returns:
+        JSON con alertas activas + quick replies para Make.com
+    """
+    from whatsapp_alerts import whatsapp_alerts_endpoint
+    from flask import jsonify
+    result, status = whatsapp_alerts_endpoint()
+    return jsonify(result), status
+
 # 📦 ENDPOINTS DE PRODUCTOS (PARA EL DASHBOARD)
 # ============================================================
 
