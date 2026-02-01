@@ -2515,6 +2515,29 @@ def war_room():
         return f"<h1>Error interno</h1><p>{str(e)}</p>", 500
 
 # ============================================================
+
+# ============================================================
+# 📱 WHATSAPP BRIDGE - MOBILE PULSE (Make + Twilio)
+# ============================================================
+
+@app.route('/api/v1/mobile-pulse', methods=['GET'])
+def mobile_pulse_route():
+    """
+    🦈 WhatsApp Bridge Endpoint - Optimizado para Make + Twilio.
+    Retorna Sticker Predictivo en formato texto plano con botones quick reply.
+    """
+    from whatsapp_bridge import mobile_pulse_endpoint
+    return mobile_pulse_endpoint()
+
+@app.route('/api/v1/whatsapp-action', methods=['POST'])
+def whatsapp_action_route():
+    """
+    🦈 WhatsApp Action Handler - Procesa respuestas de WhatsApp.
+    Recibe acciones desde Make.com y ejecuta vía interactive_handler.py.
+    """
+    from whatsapp_bridge import whatsapp_action_endpoint
+    return whatsapp_action_endpoint(request)
+
 # 📦 ENDPOINTS DE PRODUCTOS (PARA EL DASHBOARD)
 # ============================================================
 
