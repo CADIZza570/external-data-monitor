@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>🦈 WAR ROOM - Tiburón Predictivo Columbus</title>
+
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <style>
+        /* ========================================
+           WAR ROOM - CYBER RETAIL THEME
+           Estética gélida (-21°C Columbus vibes)
+           ======================================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Cyber-Retail Color Palette */
+            --ice-black: #0a0e15;
+            --deep-black: #111827;
+            --steel-gray: #1f2937;
+            --frost-gray: #374151;
+            --neon-green: #10b981;
+            --blood-red: #ef4444;
+            --ice-blue: #3b82f6;
+            --arctic-cyan: #06b6d4;
+            --gold-predator: #f59e0b;
+            --white-frost: #f9fafb;
+
+            /* Shadows */
+            --shadow-frost: 0 4px 16px rgba(6, 182, 212, 0.15);
+            --shadow-deep: 0 8px 32px rgba(0, 0, 0, 0.8);
+            --shadow-neon: 0 0 20px rgba(16, 185, 129, 0.4);
+            --shadow-blood: 0 0 20px rgba(239, 68, 68, 0.4);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, var(--ice-black) 0%, var(--deep-black) 100%);
+            color: var(--white-frost);
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ========================================
+           HEADER - COMANDO CENTRAL
+           ======================================== */
+        .war-room-header {
+            background: linear-gradient(180deg, var(--steel-gray) 0%, var(--deep-black) 100%);
+            border-bottom: 3px solid var(--arctic-cyan);
+            padding: 1.5rem 2rem;
+            box-shadow: var(--shadow-deep);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .war-room-title {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--arctic-cyan) 0%, var(--neon-green) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(6, 182, 212, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .pulse-indicator {
+            width: 16px;
+            height: 16px;
+            background: var(--neon-green);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 15px var(--neon-green);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.1); }
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 2rem;
+            font-size: 0.875rem;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--arctic-cyan);
+        }
+
+        .stat-label {
+            color: var(--frost-gray);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* ========================================
+           MAIN GRID - LAYOUT TÁCTICO
+           ======================================== */
+        .war-room-grid {
+            max-width: 1600px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+        }
+
+        /* ========================================
+           STICKER PREDICTIVO - CORAZÓN DEL WAR ROOM
+           ======================================== */
+        .heart-section {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, var(--steel-gray) 0%, var(--deep-black) 100%);
+            border: 2px solid var(--arctic-cyan);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow-frost);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .heart-section::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(6, 182, 212, 0.1) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .heart-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .heart-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: var(--arctic-cyan);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .sticker-preview {
+            background: var(--ice-black);
+            border: 1px solid var(--frost-gray);
+            border-radius: 12px;
+            padding: 2rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            box-shadow: var(--shadow-deep);
+        }
+
+        /* ========================================
+           MAPA DE CALOR - INVENTARIO DINÁMICO
+           ======================================== */
+        .heatmap-section {
+            background: var(--steel-gray);
+            border: 2px solid var(--frost-gray);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-deep);
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--white-frost);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .heatmap-cell {
+            aspect-ratio: 1;
+            border-radius: 8px;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .heatmap-cell::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .heatmap-cell:hover::before {
+            opacity: 0.2;
+            background: white;
+        }
+
+        .heatmap-cell.star {
+            background: linear-gradient(135deg, var(--neon-green) 0%, #059669 100%);
+            box-shadow: var(--shadow-neon);
+        }
+
+        .heatmap-cell.warning {
+            background: linear-gradient(135deg, var(--gold-predator) 0%, #d97706 100%);
+        }
+
+        .heatmap-cell.dead {
+            background: linear-gradient(135deg, var(--blood-red) 0%, #dc2626 100%);
+            box-shadow: var(--shadow-blood);
+        }
+
+        .cell-sku {
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .cell-stock {
+            font-size: 1.25rem;
+            font-weight: 800;
+        }
+
+        .cell-velocity {
+            font-size: 0.65rem;
+            opacity: 0.8;
+        }
+
+        /* ========================================
+           GRÁFICOS DE ASALTO
+           ======================================== */
+        .assault-charts {
+            background: var(--steel-gray);
+            border: 2px solid var(--frost-gray);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-deep);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 1rem;
+        }
+
+        /* ========================================
+           INSTINTO DEPREDADOR - ONE-CLICK ACTIONS
+           ======================================== */
+        .predator-section {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, var(--deep-black) 0%, var(--steel-gray) 100%);
+            border: 2px solid var(--gold-predator);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 0 30px rgba(245, 158, 11, 0.3);
+        }
+
+        .opportunities-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .opportunity-card {
+            background: var(--ice-black);
+            border: 1px solid var(--frost-gray);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .opportunity-card:hover {
+            border-color: var(--gold-predator);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
+        }
+
+        .opportunity-type {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .opportunity-type.surge {
+            color: var(--gold-predator);
+        }
+
+        .opportunity-type.bundle {
+            color: var(--arctic-cyan);
+        }
+
+        .opportunity-title {
+            font-size: 1.125rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+
+        .opportunity-details {
+            font-size: 0.875rem;
+            color: var(--frost-gray);
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+
+        .opportunity-roi {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--neon-green);
+            margin-bottom: 1rem;
+        }
+
+        .execute-btn {
+            width: 100%;
+            padding: 0.875rem 1.5rem;
+            background: linear-gradient(135deg, var(--gold-predator) 0%, #d97706 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .execute-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(245, 158, 11, 0.4);
+        }
+
+        .execute-btn:active {
+            transform: translateY(0);
+        }
+
+        .no-opportunities {
+            text-align: center;
+            padding: 3rem;
+            color: var(--frost-gray);
+            font-size: 1.125rem;
+        }
+
+        /* ========================================
+           EVOLUCIÓN PREDICTIVA
+           ======================================== */
+        .evolution-section {
+            background: var(--steel-gray);
+            border: 2px solid var(--frost-gray);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-deep);
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .metric-card {
+            background: var(--ice-black);
+            border: 1px solid var(--frost-gray);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--arctic-cyan);
+            margin-bottom: 0.25rem;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--frost-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-change {
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            font-weight: 600;
+        }
+
+        .metric-change.positive {
+            color: var(--neon-green);
+        }
+
+        .metric-change.negative {
+            color: var(--blood-red);
+        }
+
+        /* ========================================
+           LOADING & EMPTY STATES
+           ======================================== */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--frost-gray);
+            border-top-color: var(--arctic-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--blood-red);
+            border-radius: 8px;
+            padding: 1rem;
+            color: var(--blood-red);
+            margin-top: 1rem;
+        }
+
+        /* ========================================
+           RESPONSIVE
+           ======================================== */
+        @media (max-width: 1024px) {
+            .war-room-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header-stats {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .war-room-title {
+                font-size: 1.5rem;
+            }
+
+            .heatmap-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- HEADER - COMANDO CENTRAL -->
+    <header class="war-room-header">
+        <div class="header-content">
+            <h1 class="war-room-title">
+                <span class="pulse-indicator"></span>
+                🦈 WAR ROOM - TIBURÓN PREDICTIVO
+            </h1>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="header-inventory">$0</div>
+                    <div class="stat-label">Inventario Total</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="header-temp">--°C</div>
+                    <div class="stat-label">Columbus Temp</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="header-opportunities">0</div>
+                    <div class="stat-label">Oportunidades</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN GRID -->
+    <main class="war-room-grid">
+        <!-- CORAZÓN: STICKER PREDICTIVO -->
+        <section class="heart-section">
+            <div class="heart-content">
+                <h2 class="heart-title">
+                    ⚡ PULSO PREDICTIVO - NARRATIVA DEL DÍA
+                </h2>
+                <div class="sticker-preview" id="sticker-content">
+                    <div class="loading-spinner"></div> Cargando Sticker Predictivo...
+                </div>
+            </div>
+        </section>
+
+        <!-- MAPA DE CALOR - INVENTARIO -->
+        <section class="heatmap-section">
+            <h3 class="section-title">🔥 MAPA DE CALOR - INVENTARIO</h3>
+            <div class="heatmap-grid" id="heatmap-grid">
+                <div class="loading-spinner"></div>
+            </div>
+        </section>
+
+        <!-- GRÁFICOS DE ASALTO -->
+        <section class="assault-charts">
+            <h3 class="section-title">📊 CLIMA vs ROI</h3>
+            <div class="chart-container">
+                <canvas id="climate-roi-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- INSTINTO DEPREDADOR - OPORTUNIDADES -->
+        <section class="predator-section">
+            <h2 class="heart-title">
+                🎯 INSTINTO DEPREDADOR - OPORTUNIDADES DE CAPTURA
+            </h2>
+            <div class="opportunities-grid" id="opportunities-grid">
+                <div class="loading-spinner"></div>
+            </div>
+        </section>
+
+        <!-- EVOLUCIÓN PREDICTIVA -->
+        <section class="evolution-section">
+            <h3 class="section-title">📈 EVOLUCIÓN PREDICTIVA (7 días)</h3>
+            <div class="metrics-grid" id="evolution-metrics">
+                <div class="loading-spinner"></div>
+            </div>
+        </section>
+
+        <!-- GRÁFICO VELOCITY TRENDS -->
+        <section class="assault-charts">
+            <h3 class="section-title">⚡ VELOCITY TRENDS</h3>
+            <div class="chart-container">
+                <canvas id="velocity-chart"></canvas>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // ========================================
+        // WAR ROOM - JAVASCRIPT CONTROLLER
+        // ========================================
+
+        const API_BASE = window.location.origin;
+
+        // Estado global
+        const state = {
+            products: [],
+            opportunities: [],
+            sticker: '',
+            weather: null,
+            evolution: null
+        };
+
+        // ========================================
+        // INICIALIZACIÓN
+        // ========================================
+        async function initWarRoom() {
+            console.log('🦈 Inicializando War Room...');
+
+            try {
+                await Promise.all([
+                    loadSticker(),
+                    loadProducts(),
+                    loadOpportunities(),
+                    loadEvolution()
+                ]);
+
+                updateHeaderStats();
+                renderHeatmap();
+                renderOpportunities();
+                renderEvolution();
+                renderCharts();
+
+                console.log('✅ War Room inicializado');
+            } catch (error) {
+                console.error('❌ Error inicializando War Room:', error);
+            }
+        }
+
+        // ========================================
+        // API CALLS
+        // ========================================
+        async function loadSticker() {
+            try {
+                // Simular carga del sticker (integrar con pulse_scheduler.py después)
+                const response = await fetch(`${API_BASE}/api/cashflow/summary`);
+                const data = await response.json();
+
+                if (data.success) {
+                    state.sticker = generateStickerPreview(data.summary);
+                    document.getElementById('sticker-content').textContent = state.sticker;
+                }
+            } catch (error) {
+                console.error('Error cargando sticker:', error);
+                document.getElementById('sticker-content').innerHTML =
+                    '<div class="error-message">⚠️ Error cargando Sticker Predictivo</div>';
+            }
+        }
+
+        async function loadProducts() {
+            try {
+                const response = await fetch(`${API_BASE}/api/cashflow/abc-classification`);
+                const data = await response.json();
+
+                if (data.products) {
+                    state.products = data.products;
+                }
+            } catch (error) {
+                console.error('Error cargando productos:', error);
+            }
+        }
+
+        async function loadOpportunities() {
+            try {
+                const response = await fetch(`${API_BASE}/api/predator-suggestions`);
+                const data = await response.json();
+
+                state.opportunities = [
+                    ...(data.price_surges || []).map(s => ({ ...s, type: 'surge' })),
+                    ...(data.bundles || []).map(b => ({ ...b, type: 'bundle' }))
+                ];
+            } catch (error) {
+                console.error('Error cargando oportunidades:', error);
+            }
+        }
+
+        async function loadEvolution() {
+            try {
+                // TODO: Crear endpoint /api/evolution/7d que calcule opportunity cost
+                // Por ahora simular datos
+                state.evolution = {
+                    opportunity_cost_7d: 1250.00,
+                    clicks_total: 45,
+                    executions: 12,
+                    conversion_rate: 26.7,
+                    avg_roi: 127.5
+                };
+            } catch (error) {
+                console.error('Error cargando evolución:', error);
+            }
+        }
+
+        // ========================================
+        // RENDER FUNCTIONS
+        // ========================================
+        function generateStickerPreview(summary) {
+            return `╔═══════════════════════════════════════════════════════════╗
+║  🦈 PULSO PREDICTIVO - ${new Date().toLocaleDateString('es-ES')}
+╚═══════════════════════════════════════════════════════════╝
+
+💰 CASH FLOW SNAPSHOT:
+├─ Inventario Total: $${summary.inventory_value?.toFixed(2) || '0.00'}
+├─ Productos Totales: ${summary.total_products || 0}
+├─ Stock Crítico: ${summary.critical_stock_count || 0}
+└─ Stockouts: ${summary.stockouts_count || 0}
+
+🌡️ CONTEXTO CLIMÁTICO:
+├─ Columbus, OH: Cargando...
+└─ Próximo Feriado: Valentine's Day (14 días)
+
+🎯 PRÓXIMA ACCIÓN:
+└─ Monitorear oportunidades Instinto Depredador ↓
+
+╔═══════════════════════════════════════════════════════════╗
+║  🦈 TIBURÓN LISTO PARA CAZAR
+╚═══════════════════════════════════════════════════════════╝`;
+        }
+
+        function updateHeaderStats() {
+            const totalInventory = state.products.reduce((sum, p) =>
+                sum + (p.stock * (p.price || 0)), 0
+            );
+
+            document.getElementById('header-inventory').textContent =
+                '$' + totalInventory.toLocaleString('en-US', { maximumFractionDigits: 0 });
+
+            document.getElementById('header-opportunities').textContent =
+                state.opportunities.length;
+
+            // TODO: Cargar temperatura real desde API
+            document.getElementById('header-temp').textContent = '-9.6°C';
+        }
+
+        function renderHeatmap() {
+            const grid = document.getElementById('heatmap-grid');
+
+            if (state.products.length === 0) {
+                grid.innerHTML = '<div class="no-opportunities">No hay productos</div>';
+                return;
+            }
+
+            grid.innerHTML = state.products.map(product => {
+                let cellClass = 'warning';
+
+                if (product.velocity_daily >= 2.0) {
+                    cellClass = 'star';
+                } else if (product.velocity_daily < 0.5) {
+                    cellClass = 'dead';
+                }
+
+                return `
+                    <div class="heatmap-cell ${cellClass}"
+                         onclick="handleCellClick('${product.sku}')"
+                         title="${product.name}">
+                        <div class="cell-sku">${product.sku}</div>
+                        <div class="cell-stock">${product.stock}</div>
+                        <div class="cell-velocity">${product.velocity_daily?.toFixed(1) || '0.0'}/día</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderOpportunities() {
+            const grid = document.getElementById('opportunities-grid');
+
+            if (state.opportunities.length === 0) {
+                grid.innerHTML = `
+                    <div class="no-opportunities">
+                        ⏳ Sin oportunidades activas<br>
+                        <small>El Tiburón espera condiciones óptimas...</small>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = state.opportunities.map(opp => {
+                if (opp.type === 'surge') {
+                    return renderSurgeOpportunity(opp);
+                } else {
+                    return renderBundleOpportunity(opp);
+                }
+            }).join('');
+        }
+
+        function renderSurgeOpportunity(surge) {
+            return `
+                <div class="opportunity-card">
+                    <div class="opportunity-type surge">💹 PRICE SURGE</div>
+                    <div class="opportunity-title">${surge.product_name}</div>
+                    <div class="opportunity-details">
+                        SKU: ${surge.sku}<br>
+                        Precio Actual: $${surge.current_price?.toFixed(2)}<br>
+                        Precio Surge: $${surge.suggested_price?.toFixed(2)}<br>
+                        Duración: ${surge.duration_hours}h
+                    </div>
+                    <div class="opportunity-roi">+${surge.projected_net_profit?.toFixed(2) || '0.00'}% ROI</div>
+                    <button class="execute-btn" onclick="executeSurge('${surge.sku}', ${surge.suggested_price})">
+                        🚀 EJECUTAR SURGE
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderBundleOpportunity(bundle) {
+            return `
+                <div class="opportunity-card">
+                    <div class="opportunity-type bundle">📦 PARASITE BUNDLE</div>
+                    <div class="opportunity-title">${bundle.star_product_name}</div>
+                    <div class="opportunity-details">
+                        Estrella: ${bundle.star_sku} (${bundle.star_velocity?.toFixed(1)}/día)<br>
+                        Dead Stock: ${bundle.dead_sku} (${bundle.dead_stock} units)<br>
+                        Bundle Price: $${bundle.bundle_price?.toFixed(2)}<br>
+                        Descuento: 60%
+                    </div>
+                    <div class="opportunity-roi">+${bundle.projected_net_profit?.toFixed(2) || '0.00'}% ROI</div>
+                    <button class="execute-btn" onclick="executeBundle('${bundle.star_sku}', '${bundle.dead_sku}')">
+                        🎯 EJECUTAR BUNDLE
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderEvolution() {
+            const grid = document.getElementById('evolution-metrics');
+
+            if (!state.evolution) {
+                grid.innerHTML = '<div class="error-message">⚠️ Datos no disponibles</div>';
+                return;
+            }
+
+            const { opportunity_cost_7d, clicks_total, executions, conversion_rate, avg_roi } = state.evolution;
+
+            grid.innerHTML = `
+                <div class="metric-card">
+                    <div class="metric-value">$${opportunity_cost_7d?.toLocaleString() || '0'}</div>
+                    <div class="metric-label">Opportunity Cost 7d</div>
+                    <div class="metric-change negative">-2.3% vs semana anterior</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${clicks_total || 0}</div>
+                    <div class="metric-label">Interacciones Totales</div>
+                    <div class="metric-change positive">+18.5% vs semana anterior</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${executions || 0}</div>
+                    <div class="metric-label">Ejecuciones</div>
+                    <div class="metric-change positive">+12 esta semana</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${conversion_rate?.toFixed(1) || '0.0'}%</div>
+                    <div class="metric-label">Tasa Conversión</div>
+                    <div class="metric-change positive">+4.2pp vs semana anterior</div>
+                </div>
+            `;
+        }
+
+        function renderCharts() {
+            renderClimateROIChart();
+            renderVelocityChart();
+        }
+
+        function renderClimateROIChart() {
+            const ctx = document.getElementById('climate-roi-chart');
+
+            // Datos simulados (integrar con API real después)
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+                    datasets: [
+                        {
+                            label: 'Temperatura (°C)',
+                            data: [-15, -18, -12, -9.6, -8, -11, -14],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            yAxisID: 'y',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'ROI Proyectado (%)',
+                            data: [120, 135, 110, 100, 95, 115, 125],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            yAxisID: 'y1',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#f9fafb' }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            ticks: { color: '#3b82f6' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            ticks: { color: '#10b981' },
+                            grid: { display: false }
+                        },
+                        x: {
+                            ticks: { color: '#f9fafb' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderVelocityChart() {
+            const ctx = document.getElementById('velocity-chart');
+
+            const topProducts = state.products
+                .sort((a, b) => (b.velocity_daily || 0) - (a.velocity_daily || 0))
+                .slice(0, 10);
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: topProducts.map(p => p.sku),
+                    datasets: [{
+                        label: 'Velocity (ventas/día)',
+                        data: topProducts.map(p => p.velocity_daily || 0),
+                        backgroundColor: topProducts.map(p => {
+                            if (p.velocity_daily >= 2.0) return '#10b981';
+                            if (p.velocity_daily >= 1.0) return '#f59e0b';
+                            return '#ef4444';
+                        })
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#f9fafb' }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: { color: '#f9fafb' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        x: {
+                            ticks: { color: '#f9fafb' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ========================================
+        // ACTION HANDLERS
+        // ========================================
+        async function executeSurge(sku, price) {
+            if (!confirm(`¿Ejecutar Price Surge para ${sku} a $${price.toFixed(2)}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/execute-price-surge`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sku,
+                        surge_price: price,
+                        duration_hours: 48,
+                        confirm: true
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`✅ Price Surge ejecutado: ${result.message}`);
+                    location.reload();
+                } else {
+                    alert(`❌ Error: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error ejecutando surge:', error);
+                alert('❌ Error de red');
+            }
+        }
+
+        async function executeBundle(starSku, deadSku) {
+            if (!confirm(`¿Ejecutar Bundle Parásito: ${starSku} + ${deadSku}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/execute-bundle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        star_sku: starSku,
+                        dead_sku: deadSku,
+                        confirm: true
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`✅ Bundle ejecutado: ${result.message}`);
+                    location.reload();
+                } else {
+                    alert(`❌ Error: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error ejecutando bundle:', error);
+                alert('❌ Error de red');
+            }
+        }
+
+        function handleCellClick(sku) {
+            const product = state.products.find(p => p.sku === sku);
+            if (!product) return;
+
+            alert(`
+📦 ${product.name}
+SKU: ${product.sku}
+Stock: ${product.stock}
+Precio: $${product.price?.toFixed(2) || '0.00'}
+Velocity: ${product.velocity_daily?.toFixed(1) || '0.0'}/día
+Categoría: ${product.category}
+            `.trim());
+        }
+
+        // ========================================
+        // AUTO-REFRESH
+        // ========================================
+        setInterval(() => {
+            console.log('🔄 Refreshing War Room...');
+            initWarRoom();
+        }, 60000); // Refresh cada 60s
+
+        // Inicializar al cargar
+        document.addEventListener('DOMContentLoaded', initWarRoom);
+    </script>
+</body>
+</html>

@@ -2487,6 +2487,33 @@ def dashboard():
         logger.error(f"Error cargando dashboard: {e}")
         return f"<h1>Error interno</h1><p>{str(e)}</p>", 500
 
+@app.route('/war-room')
+def war_room():
+    """
+    🦈 WAR ROOM - Centro de Mando Táctico del Tiburón Predictivo.
+    Dashboard radical con estética Cyber-Retail, heatmap dinámico,
+    gráficos de asalto y one-click actions para Instinto Depredador.
+    """
+    try:
+        with open('templates/war_room.html', 'r', encoding='utf-8') as f:
+            return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+    except FileNotFoundError:
+        logger.error("War Room HTML no encontrado")
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head><title>Error</title></head>
+        <body style="font-family: Arial; padding: 40px; text-align: center;">
+            <h1>⚠️ War Room no encontrado</h1>
+            <p>El archivo templates/war_room.html no existe.</p>
+            <a href="/" style="color: #667eea;">← Volver al inicio</a>
+        </body>
+        </html>
+        """, 404
+    except Exception as e:
+        logger.error(f"Error cargando War Room: {e}")
+        return f"<h1>Error interno</h1><p>{str(e)}</p>", 500
+
 # ============================================================
 # 📦 ENDPOINTS DE PRODUCTOS (PARA EL DASHBOARD)
 # ============================================================
