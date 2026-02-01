@@ -17,6 +17,7 @@ import hmac
 import hashlib
 import base64
 import logging
+import requests
 from datetime import datetime, timedelta
 from flask import jsonify
 from database import get_db_connection
@@ -443,7 +444,32 @@ def shopify_orders_webhook_endpoint(request):
 
         logger.info(f"✅ Webhook procesado: {result['success']}")
 
-        # 4. RETORNAR RESULTADO
+        # 4. ENVIAR A MAKE.COM (para Twilio WhatsApp)
+        make_webhook_url = os.getenv('MAKE_WEBHOOK_URL', '')
+
+        if make_webhook_url and result['success']:
+            try:
+                logger.info(f"📤 Enviando a Make.com webhook...")
+                make_response = requests.post(
+                    make_webhook_url,
+                    json=result,
+                    headers={'Content-Type': 'application/json'},
+                    timeout=5
+                )
+
+                if make_response.status_code == 200:
+                    logger.info(f"✅ Make.com webhook enviado exitosamente")
+                else:
+                    logger.warning(f"⚠️ Make.com respondió con status {make_response.status_code}")
+
+            except requests.exceptions.Timeout:
+                logger.error(f"❌ Timeout enviando a Make.com (>5s)")
+            except Exception as e:
+                logger.error(f"❌ Error enviando a Make.com: {e}")
+        elif not make_webhook_url:
+            logger.warning(f"⚠️ MAKE_WEBHOOK_URL no configurado - saltando envío")
+
+        # 5. RETORNAR RESULTADO
         status_code = 200 if result['success'] else 500
 
         return result, status_code
