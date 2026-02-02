@@ -153,6 +153,51 @@ class CerebroCentral:
             return f"{first} {last}".strip() or "Cliente"
         return "Cliente"
 
+    def _extract_size_from_item(self, item):
+        """
+        Extrae talla del line_item de Shopify.
+
+        Args:
+            item (dict): Line item de Shopify
+
+        Returns:
+            str: Talla extraída o 'Sin talla'
+        """
+        # OPCIÓN 1: variant_title (más común - Shopify usa esto para variantes)
+        variant_title = item.get('variant_title', '')
+        if variant_title and variant_title != 'Default Title':
+            return variant_title
+
+        # OPCIÓN 2: properties custom (si el comerciante usa campos custom)
+        properties = item.get('properties', [])
+        if isinstance(properties, list):
+            for prop in properties:
+                if isinstance(prop, dict):
+                    name = prop.get('name', '').lower()
+                    if 'talla' in name or 'size' in name:
+                        return prop.get('value', '')
+
+        # OPCIÓN 3: title completo (a veces incluye talla al final)
+        title = item.get('title', '')
+        if ' - ' in title:
+            parts = title.split(' - ')
+            # Si la última parte parece una talla (número o "Talla X")
+            last_part = parts[-1].strip()
+            if last_part.replace('.', '').replace(',', '').isdigit() or 'talla' in last_part.lower():
+                return last_part
+
+        # OPCIÓN 4: variant_sku puede contener talla
+        sku = item.get('sku', '')
+        if sku and '-' in sku:
+            # Muchos SKUs tienen formato: PRODUCTO-TALLA
+            # Ej: BTA-CG-PTN-NAT-065 donde 065 podría ser la talla
+            parts = sku.split('-')
+            last_part = parts[-1]
+            if last_part.replace('.', '').isdigit():
+                return f"Talla {last_part}"
+
+        return 'Sin talla'
+
     def _process_line_item(self, item, conn):
         """
         Procesa un line_item y actualiza métricas del producto.
@@ -336,10 +381,20 @@ class CerebroCentral:
         message += f"👤 Cliente: {customer_name}\n"
         message += f"💰 Total: ${total_price:.2f}\n\n"
 
-        # PRODUCTOS
+        # PRODUCTOS CON TALLA
         message += f"📦 Productos ({len(line_items)}):\n"
-        for update in metrics_updates[:3]:  # Max 3 productos para no hacer mensaje muy largo
-            message += f"• {update['product_name'][:30]}\n"
+
+        # Combinar line_items con metrics_updates para tener talla + stock
+        for i, (item, update) in enumerate(zip(line_items[:3], metrics_updates[:3])):
+            # Extraer talla de múltiples fuentes posibles
+            talla = self._extract_size_from_item(item)
+
+            # Nombre producto + talla
+            product_display = update['product_name'][:25]
+            if talla and talla != 'Sin talla':
+                product_display += f" - {talla}"
+
+            message += f"• {product_display}\n"
             message += f"  {update['quantity']}u × ${update['price']:.2f}\n"
             message += f"  Stock: {update['old_stock']}→{update['new_stock']}\n"
 
