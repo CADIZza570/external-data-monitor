@@ -82,6 +82,8 @@ from database import save_webhook, get_webhooks, get_webhook_count, save_product
 # ✅ NUEVO: Sistema anti-duplicados
 from alert_deduplication import get_deduplicator, ALERT_TTL_CONFIG
 from business_adapter import BusinessAdapter  # ← NUEVA
+# ✅ NUEVO v2.0: Cerebro Central - Webhook processor optimizado
+from cerebro_central import shopify_orders_webhook_endpoint, ensure_daily_sales_table
 
 # ============= NUEVO: Sistema de eventos =============
 from src.utils.event_logger import EventLogger
@@ -105,6 +107,7 @@ validate_config(strict=False)  # ✅ Modo no-estricto para Railway
 # ✅ CRÍTICO: Inicializar DB y ejecutar migraciones al arrancar
 print("🔧 Inicializando base de datos y ejecutando migraciones...")
 init_database()
+ensure_daily_sales_table()  # ✅ v2.0: Tabla para milestones
 print("✅ Base de datos lista")
 
 # =========================
@@ -2037,6 +2040,61 @@ def webhook_shopify():
             "status": "error",
             "message": "Internal server error"  # Generic message para cliente
         }), 500
+
+
+# =========================
+# 🦈🧠 CEREBRO CENTRAL - Webhook Processor Optimizado v2.0
+# =========================
+
+@app.route("/api/webhook/shopify/orders", methods=["POST"])
+@limiter.limit("200 per hour")  # Rate limiting generoso para producción
+def shopify_orders_webhook():
+    """
+    🧠 CEREBRO CENTRAL - Procesador de webhooks Shopify optimizado.
+
+    VERSIÓN 2.0 - GOLD STANDARD PRE-POSTGRESQL
+
+    Features:
+    - Procesamiento en tiempo real de orders/create
+    - Cálculo de métricas con MetricsCalculator modular
+    - Error handling robusto en cada paso
+    - JSON tipado para Make.com + Twilio WhatsApp
+    - Detección automática de alertas (stock crítico, alto ROI, milestones)
+    - Auto-envío a Make.com para notificaciones WhatsApp
+    - Extracción de talla/size de productos
+    - Sanitización de caracteres especiales
+
+    Autenticación:
+    - HMAC Shopify (X-Shopify-Hmac-SHA256) para webhooks reales
+    - X-Admin-Key para testing manual
+    - Sin auth en desarrollo (si SHOPIFY_WEBHOOK_SECRET no está configurado)
+
+    Response JSON:
+    {
+        "success": bool,
+        "order_id": int,
+        "order_number": int,
+        "total_price": float,
+        "message": str,  # Mensaje WhatsApp formateado
+        "alerts": List[dict],
+        "metrics_updated": List[dict],
+        "timestamp": str,
+        "processed_items": int
+    }
+
+    Usage:
+        # Webhook Shopify real (con HMAC)
+        POST /api/webhook/shopify/orders
+        Headers: X-Shopify-Hmac-SHA256: <base64>
+        Body: {orden de Shopify}
+
+        # Testing manual
+        POST /api/webhook/shopify/orders
+        Headers: X-Admin-Key: shark-predator-2026
+        Body: {orden simulada}
+    """
+    result, status_code = shopify_orders_webhook_endpoint(request)
+    return jsonify(result), status_code
 
 
 # =========================
